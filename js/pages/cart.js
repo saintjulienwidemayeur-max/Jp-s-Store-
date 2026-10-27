@@ -114,7 +114,7 @@ root.addEventListener('submit', async (e) => {
       coupon = null; store.set('');
       const min = v.coupon?.min_subtotal ?? 10;
       msg = v.reason === 'min_subtotal'
-        ? { type: 'warn', text: t('cart.coupon_min', { code: v.coupon?.code || code.toUpperCase(), min: formatMoney(min), percent: coupon?.percent ?? 15 }) }
+        ? { type: 'warn', text: t('cart.coupon_min', { code: v.coupon?.code || code.toUpperCase(), min: formatMoney(min), percent: v.coupon?.percent ?? 15 }) }
         : { type: 'err', text: t(v.reason === 'expired' ? 'cart.coupon_expired' : 'cart.coupon_invalid') };
     }
   } catch (err) {
