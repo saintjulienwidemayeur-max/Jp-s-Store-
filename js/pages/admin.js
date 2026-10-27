@@ -3,11 +3,17 @@ import { t } from '../i18n.js';
 import { escapeHtml, toast } from '../layout.js';
 import { formatMoney } from '../pricing.js';
 import * as api from '../api.js';
+import { createMediaManager } from './admin-media.js';
 
 const root = document.getElementById('main');
 const STATUSES = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'];
 const E = escapeHtml;
 const st = { tab: 'overview', user: null, stats: null, orders: [], filter: '', products: [], categories: [], coupons: [], editing: null, editingCoupon: null, error: null };
+
+const mmEl = document.createElement('section');
+mmEl.className = 'c-card mm'; mmEl.id = 'media-mgr';
+const mgr = createMediaManager(mmEl);
+let mmFor;
 
 const slugify = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const lowOf = (x) => (typeof x === 'object' ? x : { name: String(x), stock: '' });
@@ -87,7 +93,7 @@ function productsHTML() {
   return `<div class="a-toolbar"><h2 style="margin:0">${E(t('admin.products'))}</h2>
       <button class="btn btn-primary a-small" data-act="new-product">+ ${E(t('admin.new_product'))}</button></div>
     <div class="a-split"><div class="a-tablewrap"><table class="a-table"><thead><tr><th></th><th>${E(t('admin.p_name'))}</th><th>${E(t('admin.p_price'))}</th><th>${E(t('admin.p_stock'))}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div>${productFormHTML()}</div></div>`;
+    <div>${productFormHTML()}${st.editing ? '<div id="media-slot"></div>' : ''}</div></div>`;
 }
 
 function couponsHTML() {
@@ -116,6 +122,12 @@ function render() {
   root.innerHTML = `<h1>${E(t('admin.title'))}</h1><p class="c-sub">${E(st.user.email)}</p>
     <div class="a-nav" role="tablist">${tabs.map((k) => `<button type="button" role="tab" aria-selected="${st.tab === k}" data-tab="${k}">${E(t(`admin.tab_${k}`))}</button>`).join('')}</div>
     <section>${body}</section>`;
+  const slot = root.querySelector('#media-slot');
+  if (slot && st.editing) {
+    const key = st.editing.id || '';
+    if (mmFor !== key) { mmFor = key; mgr.open(st.editing); }
+    slot.replaceWith(mmEl);
+  } else if (mmFor !== undefined) { mmFor = undefined; mgr.close(); }
 }
 
 async function loadAll() {
@@ -179,8 +191,8 @@ root.addEventListener('submit', async (e) => {
         image: String(fd.get('image')).trim() || null, tags: String(fd.get('tags')).split(',').map((x) => x.trim()).filter(Boolean),
         is_active: fd.has('is_active'), is_popular: fd.has('is_popular'),
       };
-      await api.adminUpsertProduct(prod);
-      st.editing = null; st.error = null; toast(t('admin.saved'), 'success');
+      const saved = await api.adminUpsertProduct(prod);
+      st.editing = prod.id || !saved || !saved.id ? null : { ...saved }; st.error = null; toast(t('admin.saved'), 'success');
     } else if (e.target.id === 'coupon-form') {
       const code = String(fd.get('code')).trim().toUpperCase();
       const percent = parseInt(fd.get('percent'), 10);

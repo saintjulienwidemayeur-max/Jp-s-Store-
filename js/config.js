@@ -17,5 +17,10 @@ root.JPS_CONFIG = root.JPS_CONFIG || {
       instructions: 'Card payments are coming soon.' }
   ],
   CONTACT: { instagram: 'jpslogistics', whatsapp: '', email: '' },
-  CURRENCY: 'USD'
+  CURRENCY: 'USD',
+  // Media / 3D knobs (public, safe in the browser). Secrets (MESHY_API_KEY...) live ONLY in Supabase secrets.
+  AUTO_3D: true,                         // uploadMedia(image) auto-requests a 3D job unless false
+  MEDIA_BUCKET: 'product-media',
+  MEDIA_LIMITS: { image: 8 * 1024 * 1024, video: 50 * 1024 * 1024, model3d: 30 * 1024 * 1024 },
+  FUNCTION_3D: 'generate-3d'             // Supabase Edge Function name
 };

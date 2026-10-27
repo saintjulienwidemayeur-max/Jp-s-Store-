@@ -1,5 +1,6 @@
 // Shared chrome: promo strip, header, drawer, search overlay, footer, toasts, product cards.
 import { t, getLang, setLang, getLangs, LANG_NAMES } from './i18n.js';
+import './i18n.media.js';
 import { formatMoney, COUPON_DEFAULT } from './pricing.js';
 import * as api from './api.js';
 import { addItem, cartCount, onCartChange } from './cart.js';
@@ -29,6 +30,7 @@ const P = {
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/>',
   headset: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M19 20c0 1.5-2 2-5 2"/>',
   insta: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   bag: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
 };
 export function icon(name, cls = '') {
@@ -164,10 +166,6 @@ function navLink(href, label, match) {
 }
 const pLinks = ['about', 'contact', 'faq', 'shipping', 'returns'];
 
-function langButtons(cls) {
-  return getLangs().map(l => `<button type="button" class="lang-btn ${l === getLang() ? 'on' : ''}" data-lang="${l}" lang="${l}" ${l === getLang() ? 'aria-current="true"' : ''} title="${escapeHtml(LANG_NAMES[l])}">${l.toUpperCase()}</button>`).join('');
-}
-
 function chromeHTML() {
   const c = COUPON_DEFAULT;
   return `
@@ -205,8 +203,7 @@ function chromeHTML() {
     <div id="drawer-cats" class="drawer-sub"></div>
     <h2 class="drawer-h">${escapeHtml(t('nav.pages'))}</h2>
     <div class="drawer-sub">${pLinks.map(p => `<a href="info.html?p=${p}">${escapeHtml(t('nav.' + p))}</a>`).join('')}</div>
-    <h2 class="drawer-h">${escapeHtml(t('nav.language'))}</h2>
-    <div class="langs" role="group" aria-label="${escapeHtml(t('nav.language'))}">${langButtons()}</div>
+    <a href="settings.html" ${page === 'settings.html' ? 'aria-current="page"' : ''}>${icon('gear')}${escapeHtml(t('nav.settings'))}</a>
   </nav>
   <a class="drawer-ig" href="${IG_URL}" target="_blank" rel="noopener">${icon('insta')} @jpslogistics</a>
 </aside>
@@ -247,7 +244,7 @@ function footerHTML() {
   </div>
   <div class="container foot-bar">
     <p>${escapeHtml(t('footer.rights', { year: new Date().getFullYear() }))}</p>
-    <div class="langs" role="group" aria-label="${escapeHtml(t('footer.languages'))}">${langButtons()}</div>
+    <a class="foot-lang" href="settings.html" data-foot-lang>${escapeHtml(t('footer.language_link', { lang: LANG_NAMES[getLang()] }))}</a>
   </div>
 </footer>`;
 }
@@ -357,6 +354,19 @@ function setupNewsletter() {
   });
 }
 
+// Language is a preference (api.getPreferences). If it differs from what this page rendered (e.g. saved on the
+// account from another device), adopt it once: setLang stores jps_lang so this cannot loop.
+async function syncPreferredLang() {
+  try {
+    if (typeof api.getPreferences !== 'function') return;
+    const pref = await api.getPreferences();
+    const l = pref && pref.lang;
+    let stored = null; try { stored = localStorage.getItem('jps_lang'); } catch {}
+    // 'en' with nothing stored is just the unset default: do not override the browser-derived language with it
+    if (l && l !== getLang() && getLangs().includes(l) && (stored || l !== 'en')) setLang(l);
+  } catch {}
+}
+
 function mount() {
   if (document.getElementById('site-header')) return;
   const holder = document.createElement('div');
@@ -370,7 +380,7 @@ function mount() {
   const f = document.createElement('div'); f.innerHTML = footerHTML();
   document.body.appendChild(f.firstElementChild);
   setupDrawer(); setupSearch(); setupNewsletter();
-  document.addEventListener('click', e => { const b = e.target.closest('[data-lang]'); if (b) setLang(b.dataset.lang); });
+  syncPreferredLang();
   onCartChange(syncBadges);
   syncBadges();
   loadWishlist();

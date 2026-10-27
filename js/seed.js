@@ -5,9 +5,19 @@ export const SEED_CATEGORIES = [
   { id: uid(1), slug: 'fan-zone', name: 'Fan Zone', image: 'assets/img/headband.jpg' }
 ];
 
+// Deterministic media ids so seed, SQL and runtime agree: 0ed1a000-<index>-<tail of product id>.
+export const mediaIdFor = (productId, i) => `0ed1a000-${String(i).padStart(4, '0')}${String(productId).slice(13)}`;
+export function mediaFromImages(productId, name, images) {
+  return (images || []).filter(Boolean).map((url, i) => ({
+    id: mediaIdFor(productId, i), type: 'image', url, poster: null, alt: name, sort: i, is_cover: i === 0,
+    source: 'upload', status: 'ready'
+  }));
+}
+
 const P = (n, slug, name, description, price, image, popular, stock, tags, compare = null) => ({
   id: uid(100 + n), slug, name, description, price, compare_at_price: compare,
   category_slug: 'fan-zone', image, images: image ? [image] : [],
+  media: mediaFromImages(uid(100 + n), name, image ? [image] : []),
   rating: 5, review_count: 0, stock, is_active: true, is_popular: popular, tags,
   created_at: new Date(Date.UTC(2026, 4, 1 + n)).toISOString()
 });

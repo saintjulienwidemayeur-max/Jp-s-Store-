@@ -2,7 +2,7 @@
 // Mode is auto-selected from window.JPS_CONFIG: Supabase when URL + anon key exist, else local (localStorage).
 import './config.js';
 import { computeTotals, roundMoney, COUPON_DEFAULT } from './pricing.js';
-import { SEED_CATEGORIES, SEED_PRODUCTS, SEED_COUPONS } from './seed.js';
+import { SEED_CATEGORIES, SEED_PRODUCTS, SEED_COUPONS, mediaFromImages } from './seed.js';
 
 const CFG = () => globalThis.JPS_CONFIG || {};
 const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
@@ -87,6 +87,7 @@ export function _resetLocalForTests() {
       Object.keys(localStorage).filter((k) => k.startsWith('jps_') && k !== 'jps_cart_v1' && k !== 'jps_lang').forEach((k) => localStorage.removeItem(k));
   } catch { /* ignore */ }
   authListeners.clear();
+  blobMem.clear(); objectUrls.clear();
 }
 
 const K = { seeded: 'jps_seeded_v1', products: 'jps_products', categories: 'jps_categories', coupons: 'jps_coupons',
@@ -136,19 +137,19 @@ const local = {
 
   async listProducts({ category, q, sort = 'popular', limit, includeInactive = false } = {}) {
     await ensureSeeded();
-    let list = store.get(K.products, []);
+    let list = loadProducts();
     if (!includeInactive) list = list.filter((p) => p.is_active);
     if (category) list = list.filter((p) => p.category_slug === category);
     if (q && String(q).trim()) list = list.filter((p) => matchesQuery(p, q));
     list = sortProducts(list, sort);
     if (limit > 0) list = list.slice(0, limit);
-    return clone(list);
+    return Promise.all(list.map((p) => hydrate(p)));
   },
 
   async getProduct(slugOrId) {
     await ensureSeeded();
-    const p = store.get(K.products, []).find((x) => x.slug === slugOrId || x.id === slugOrId);
-    return p ? clone(p) : null;
+    const p = loadProducts().find((x) => x.slug === slugOrId || x.id === slugOrId);
+    return p ? hydrate(p) : null;
   },
 
   async validateCoupon(code, subtotal) {
@@ -303,15 +304,22 @@ const local = {
   async adminUpsertProduct(product) {
     await ensureSeeded(); requireAdminLocal();
     const d = normalizeProduct(product);
-    const products = store.get(K.products, []);
+    const products = loadProducts();
     const cats = store.get(K.categories, []);
     if (!cats.some((c) => c.slug === d.category_slug)) throw err('validation', 'Unknown category');
     const existing = d.id ? products.find((x) => x.id === d.id) : null;
     if (products.some((x) => x.slug === d.slug && x.id !== (existing && existing.id))) throw err('validation', 'Slug already used');
-    if (existing) { Object.assign(existing, d); store.set(K.products, products); return clone(existing); }
-    const p = { rating: 5, review_count: 0, created_at: new Date().toISOString(), ...d, id: uuid() };
-    products.push(p); store.set(K.products, products);
-    return clone(p);
+    if (existing) {
+      const { image, images, ...rest } = d;
+      Object.assign(existing, rest);
+      if (!(Array.isArray(existing.media) && existing.media.length)) existing.media = mediaFromImages(existing.id, existing.name, images);
+      ensureMedia(existing); store.set(K.products, products);
+      return hydrate(existing);
+    }
+    const id = uuid();
+    const p = { rating: 5, review_count: 0, created_at: new Date().toISOString(), ...d, id, media: mediaFromImages(id, d.name, d.images) };
+    ensureMedia(p); products.push(p); store.set(K.products, products);
+    return hydrate(p);
   },
   async adminDeleteProduct(id) {
     await ensureSeeded(); requireAdminLocal();
@@ -414,14 +422,18 @@ function unwrap({ data, error }) {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PRODUCT_SELECT = '*, categories(slug)';
 function mapProduct(r) {
-  return {
+  const p = {
     id: r.id, slug: r.slug, name: r.name, description: r.description || '', price: Number(r.price),
     compare_at_price: r.compare_at_price == null ? null : Number(r.compare_at_price),
     category_slug: r.categories ? r.categories.slug : null, image: r.image || null,
     images: (r.images && r.images.length) ? r.images : (r.image ? [r.image] : []),
     rating: Number(r.rating), review_count: r.review_count, stock: r.stock, is_active: r.is_active,
-    is_popular: r.is_popular, tags: r.tags || [], created_at: r.created_at
+    is_popular: r.is_popular, tags: r.tags || [], created_at: r.created_at,
+    media: Array.isArray(r.media) ? r.media : []
   };
+  if (!p.media.length) p.media = mediaFromImages(p.id, p.name, p.images);
+  ensureMedia(p);
+  return p;
 }
 function mapOrder(r) {
   const items = (r.order_items || []).map((i) => ({ product_id: i.product_id, name: i.name, image: i.image,
@@ -602,6 +614,411 @@ const supa = {
 };
 
 /* ====================================================================== */
+/* MEDIA, 3D JOBS, PREFERENCES  (shared helpers + local + supabase)        */
+/* ====================================================================== */
+const MB = 1024 * 1024;
+export function mediaLimits() {
+  const l = CFG().MEDIA_LIMITS || {};
+  return { image: l.image || 8 * MB, video: l.video || 50 * MB, model3d: l.model3d || 30 * MB };
+}
+const bucketName = () => CFG().MEDIA_BUCKET || 'product-media';
+
+const ascii = (b, off, s) => [...s].every((ch, i) => b[off + i] === ch.charCodeAt(0));
+/** Identify a file from its leading bytes (never from its name/extension). -> {type, mime, ext} | null */
+export function sniffMedia(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return { type: 'image', mime: 'image/jpeg', ext: 'jpg' };
+  if (b.length >= 8 && b[0] === 0x89 && ascii(b, 1, 'PNG') && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a)
+    return { type: 'image', mime: 'image/png', ext: 'png' };
+  if (b.length >= 12 && ascii(b, 0, 'RIFF') && ascii(b, 8, 'WEBP')) return { type: 'image', mime: 'image/webp', ext: 'webp' };
+  if (b.length >= 12 && ascii(b, 4, 'ftyp') && !ascii(b, 8, 'qt  ')) return { type: 'video', mime: 'video/mp4', ext: 'mp4' };
+  if (b.length >= 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return { type: 'video', mime: 'video/webm', ext: 'webm' };
+  if (b.length >= 12 && ascii(b, 0, 'glTF') && b[4] === 2 && b[5] === 0 && b[6] === 0 && b[7] === 0) return { type: 'model3d', mime: 'model/gltf-binary', ext: 'glb' };
+  return null;
+}
+
+/** Validate a File/Blob: size, magic bytes, declared MIME consistency. -> {type, mime, ext, size}. Throws code 'validation'. */
+export async function validateMediaFile(file) {
+  if (!file || typeof file.arrayBuffer !== 'function' || typeof file.size !== 'number') throw err('validation', 'No file provided');
+  if (file.size <= 0) throw err('validation', 'File is empty');
+  if (file.size > Math.max(...Object.values(mediaLimits()))) throw err('validation', 'File is too large');
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const kind = sniffMedia(head);
+  if (!kind) throw err('validation', 'Unsupported file type (allowed: JPEG, PNG, WebP, MP4, WebM, GLB)');
+  const declared = String(file.type || '').toLowerCase();
+  const generic = !declared || declared === 'application/octet-stream';
+  const okDeclared = generic || declared === kind.mime || (kind.type === 'model3d' && declared === 'model/gltf+binary');
+  if (!okDeclared) throw err('validation', 'File content does not match its declared type');
+  const max = mediaLimits()[kind.type];
+  if (file.size > max) throw err('validation', `File is too large (max ${Math.round(max / MB)} MB for ${kind.type})`);
+  return { ...kind, size: file.size };
+}
+
+/* ---- media list helpers (pure) ---- */
+function normalizeMediaList(p) {
+  const list = (Array.isArray(p.media) ? p.media : []).slice()
+    .sort((a, b) => (Number(a.sort) || 0) - (Number(b.sort) || 0));
+  const imgs = list.filter((m) => m.type === 'image');
+  const cover = imgs.find((m) => m.is_cover) || imgs[0] || null;
+  list.forEach((m, i) => { m.sort = i; m.is_cover = m === cover; });
+  p.media = list;
+  return p;
+}
+function deriveImages(p) {
+  const imgs = p.media.filter((m) => m.type === 'image');
+  const cover = imgs.find((m) => m.is_cover) || imgs[0];
+  p.image = cover ? cover.url : null;
+  p.images = cover ? [cover.url, ...imgs.filter((m) => m !== cover).map((m) => m.url)] : [];
+  return p;
+}
+function ensureMedia(p) {
+  if (!Array.isArray(p.media)) p.media = mediaFromImages(p.id, p.name, p.images && p.images.length ? p.images : (p.image ? [p.image] : []));
+  normalizeMediaList(p);
+  return deriveImages(p);
+}
+const mediaForClient = (p) => clone(p.media);
+
+/* ---- blob store (IndexedDB 'jps_media'; in-memory Map in Node / when IDB is unavailable) ---- */
+const blobMem = new Map();
+const objectUrls = new Map();
+let idbPromise = null;
+function idb() {
+  if (typeof indexedDB === 'undefined') return Promise.resolve(null);
+  if (!idbPromise) {
+    idbPromise = new Promise((resolve) => {
+      try {
+        const req = indexedDB.open('jps_media', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('blobs');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+        req.onblocked = () => resolve(null);
+      } catch { resolve(null); }
+    });
+  }
+  return idbPromise;
+}
+const idbReq = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+async function blobPut(id, blob) {
+  const db = await idb();
+  if (db) { try { await idbReq(db.transaction('blobs', 'readwrite').objectStore('blobs').put(blob, id)); return; } catch { /* fall back */ } }
+  blobMem.set(id, blob);
+}
+async function blobGet(id) {
+  if (blobMem.has(id)) return blobMem.get(id);
+  const db = await idb();
+  if (db) { try { return (await idbReq(db.transaction('blobs').objectStore('blobs').get(id))) || null; } catch { /* ignore */ } }
+  return null;
+}
+async function blobDel(id) {
+  blobMem.delete(id);
+  const u = objectUrls.get(id); if (u && typeof URL !== 'undefined' && URL.revokeObjectURL) { try { URL.revokeObjectURL(u); } catch { /* ignore */ } }
+  objectUrls.delete(id);
+  const db = await idb();
+  if (db) { try { await idbReq(db.transaction('blobs', 'readwrite').objectStore('blobs').delete(id)); } catch { /* ignore */ } }
+}
+async function blobUrl(id) {
+  if (objectUrls.has(id)) return objectUrls.get(id);
+  const blob = await blobGet(id);
+  if (!blob) return null;
+  let url = null;
+  try { if (typeof URL !== 'undefined' && URL.createObjectURL) url = URL.createObjectURL(blob); } catch { /* ignore */ }
+  if (!url) {
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    url = `data:${blob.type || 'application/octet-stream'};base64,${btoa(bin)}`;
+  }
+  objectUrls.set(id, url);
+  return url;
+}
+const IDB_PREFIX = 'idb:';
+async function resolveRef(u) {
+  if (typeof u === 'string' && u.startsWith(IDB_PREFIX)) return (await blobUrl(u.slice(IDB_PREFIX.length))) || null;
+  return u;
+}
+/** Local read path: product copy whose idb: refs are turned into object URLs; image/images derived from media. */
+async function hydrate(raw) {
+  const p = clone(raw);
+  ensureMedia(p);
+  for (const m of p.media) { m.url = await resolveRef(m.url); m.poster = await resolveRef(m.poster); }
+  return deriveImages(p);
+}
+function loadProducts() { const l = store.get(K.products, []); l.forEach(ensureMedia); return l; }
+
+/* ---- preferences ---- */
+const PREF_VALIDATORS = { lang: (v) => (['en', 'fr', 'ht'].includes(v) ? v : undefined) };
+const rawLang = {
+  get() { try { if (typeof localStorage !== 'undefined') return localStorage.getItem('jps_lang'); } catch { /* ignore */ } return mem.get('jps_lang') ?? null; },
+  set(v) { try { if (typeof localStorage !== 'undefined') { localStorage.setItem('jps_lang', v); return; } } catch { /* ignore */ } mem.set('jps_lang', v); }
+};
+function cleanPrefs(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw err('validation', 'Invalid preferences');
+  const out = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (!PREF_VALIDATORS[k]) throw err('validation', `Unknown preference: ${k}`);
+    const val = PREF_VALIDATORS[k](v);
+    if (val === undefined) throw err('validation', `Invalid value for ${k}`);
+    out[k] = val;
+  }
+  return out;
+}
+const prefDefaults = () => ({ lang: 'en' });
+function localPrefs() {
+  const lang = rawLang.get();
+  return { ...prefDefaults(), ...store.get('jps_prefs', {}), ...(PREF_VALIDATORS.lang(lang) ? { lang } : {}) };
+}
+
+/* ---- 3D job helpers ---- */
+const JOB_STATUSES = ['queued', 'processing', 'succeeded', 'failed'];
+const K3D = 'jps_3d_jobs';
+const mapJob = (r) => ({
+  id: r.id, product_id: r.product_id, source_media_id: r.source_media_id, result_media_id: r.result_media_id || null,
+  status: r.status, progress: Number(r.progress) || 0, provider: r.provider || null, error: r.error || null,
+  created_at: r.created_at, updated_at: r.updated_at
+});
+
+/* ---------------- local implementation ---------------- */
+Object.assign(local, {
+  async uploadMedia(productId, file, { alt, onProgress } = {}) {
+    await ensureSeeded(); requireAdminLocal();
+    const info = await validateMediaFile(file);
+    const products = loadProducts();
+    const p = products.find((x) => x.id === productId || x.slug === productId);
+    if (!p) throw err('not_found', 'Product not found');
+    if (typeof onProgress === 'function') onProgress(0);
+    const id = uuid();
+    await blobPut(id, file);
+    const item = { id, type: info.type, url: `${IDB_PREFIX}${id}`, poster: null, alt: str(alt, 300) || p.name, sort: p.media.length,
+      is_cover: false, source: 'upload', status: 'ready', mime: info.mime, size: info.size };
+    p.media.push(item);
+    ensureMedia(p); store.set(K.products, products);
+    if (typeof onProgress === 'function') onProgress(1);
+    const out = clone(p.media.find((m) => m.id === id));
+    out.url = await resolveRef(out.url);
+    if (info.type === 'image' && CFG().AUTO_3D !== false) {
+      try { out.job = await local.request3D(p.id, id); } catch { /* upload succeeded; 3D can be requested later */ }
+    }
+    return out;
+  },
+  async deleteMedia(productId, mediaId) {
+    await ensureSeeded(); requireAdminLocal();
+    const products = loadProducts();
+    const p = products.find((x) => x.id === productId || x.slug === productId);
+    if (!p) throw err('not_found', 'Product not found');
+    const m = p.media.find((x) => x.id === mediaId);
+    if (!m) throw err('not_found', 'Media not found');
+    const gone = new Set([mediaId, ...p.media.filter((x) => x.source_media_id === mediaId).map((x) => x.id)]); // cascade generated 3D
+    for (const x of p.media.filter((y) => gone.has(y.id))) if (String(x.url || '').startsWith(IDB_PREFIX)) await blobDel(x.url.slice(IDB_PREFIX.length));
+    p.media = p.media.filter((x) => !gone.has(x.id));
+    ensureMedia(p); store.set(K.products, products);
+    store.set(K3D, store.get(K3D, []).filter((j) => !(j.product_id === p.id && gone.has(j.source_media_id))));
+    return mediaForClient(await hydrate(p));
+  },
+  async reorderMedia(productId, ids) {
+    await ensureSeeded(); requireAdminLocal();
+    const products = loadProducts();
+    const p = products.find((x) => x.id === productId || x.slug === productId);
+    if (!p) throw err('not_found', 'Product not found');
+    if (!Array.isArray(ids) || new Set(ids).size !== ids.length || ids.some((i) => !p.media.some((m) => m.id === i))) throw err('validation', 'Invalid media order');
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    const rest = p.media.filter((m) => !rank.has(m.id));
+    const ordered = [...p.media.filter((m) => rank.has(m.id)).sort((a, b) => rank.get(a.id) - rank.get(b.id)), ...rest];
+    ordered.forEach((m, i) => { m.sort = i; });
+    p.media = ordered; ensureMedia(p); store.set(K.products, products);
+    return mediaForClient(await hydrate(p));
+  },
+  async setCover(productId, mediaId) {
+    await ensureSeeded(); requireAdminLocal();
+    const products = loadProducts();
+    const p = products.find((x) => x.id === productId || x.slug === productId);
+    if (!p) throw err('not_found', 'Product not found');
+    const m = p.media.find((x) => x.id === mediaId);
+    if (!m) throw err('not_found', 'Media not found');
+    if (m.type !== 'image') throw err('validation', 'Cover must be an image');
+    p.media.forEach((x) => { x.is_cover = x.id === mediaId; });
+    ensureMedia(p); store.set(K.products, products);
+    return mediaForClient(await hydrate(p));
+  },
+  async request3D(productId, mediaId) {
+    await ensureSeeded(); requireAdminLocal();
+    const products = loadProducts();
+    const p = products.find((x) => x.id === productId || x.slug === productId);
+    if (!p) throw err('not_found', 'Product not found');
+    const src = p.media.find((x) => x.id === mediaId);
+    if (!src) throw err('not_found', 'Media not found');
+    if (src.type !== 'image') throw err('validation', 'Only images can be converted to 3D');
+    // regenerate = replace the previous generated model of this image
+    p.media = p.media.filter((x) => !(x.type === 'model3d' && x.source === 'generated' && x.source_media_id === mediaId));
+    const jobId = uuid(); const resultId = uuid(); const now = new Date().toISOString();
+    p.media.push({ id: resultId, type: 'model3d', url: null, poster: src.url, alt: `${p.name} (3D)`, sort: p.media.length, is_cover: false,
+      source: 'generated', status: 'ready', fallback: 'tilt', source_media_id: mediaId, job_id: jobId });
+    ensureMedia(p); store.set(K.products, products);
+    const jobs = store.get(K3D, []).filter((j) => !(j.product_id === p.id && j.source_media_id === mediaId));
+    const job = { id: jobId, product_id: p.id, source_media_id: mediaId, result_media_id: resultId, status: 'succeeded', progress: 100,
+      provider: 'local', error: null, created_at: now, updated_at: now };
+    jobs.push(job); store.set(K3D, jobs);
+    return clone(job);
+  },
+  async get3DJob(jobId) { await ensureSeeded(); requireAdminLocal(); const j = store.get(K3D, []).find((x) => x.id === jobId); return j ? clone(j) : null; },
+  async list3DJobs(productId) {
+    await ensureSeeded(); requireAdminLocal();
+    const p = loadProducts().find((x) => x.id === productId || x.slug === productId);
+    if (!p) return [];
+    return clone(store.get(K3D, []).filter((j) => j.product_id === p.id).sort((a, b) => b.created_at.localeCompare(a.created_at)));
+  },
+  async getPreferences() { return localPrefs(); },
+  async setPreferences(patch) {
+    const c = cleanPrefs(patch);
+    if (c.lang) rawLang.set(c.lang);
+    const { lang, ...rest } = c;
+    if (Object.keys(rest).length) store.set('jps_prefs', { ...store.get('jps_prefs', {}), ...rest });
+    return localPrefs();
+  }
+});
+
+/* ---------------- supabase implementation ---------------- */
+async function requireAdminSupa() {
+  const u = await supaUser();
+  if (!u) throw err('auth', 'Sign in required');
+  if (!u.is_admin) throw err('forbidden', 'Admin only');
+  return u;
+}
+async function supaProductRow(c, productId) {
+  const col = UUID_RE.test(productId) ? 'id' : 'slug';
+  const r = unwrap(await c.from('products').select('id,name,media,image,images').eq(col, productId).maybeSingle());
+  if (!r) throw err('not_found', 'Product not found');
+  const p = { id: r.id, name: r.name, image: r.image, images: r.images || [], media: Array.isArray(r.media) ? r.media : [] };
+  if (!p.media.length) p.media = mediaFromImages(p.id, p.name, p.images.length ? p.images : (p.image ? [p.image] : []));
+  return ensureMedia(p);
+}
+async function supaSaveMedia(c, p) {
+  ensureMedia(p);
+  unwrap(await c.from('products').update({ media: p.media, image: p.image, images: p.images }).eq('id', p.id).select('id').single());
+  return clone(p.media);
+}
+const storagePathOf = (m) => m.path || null;
+const jobNudge = new Map();
+async function nudgeJob(c, job) {
+  if (!['queued', 'processing'].includes(job.status)) return job;
+  const last = jobNudge.get(job.id) || 0;
+  if (Date.now() - last < 5000) return job;
+  jobNudge.set(job.id, Date.now());
+  try {
+    await c.functions.invoke(CFG().FUNCTION_3D || 'generate-3d', { body: { action: 'advance', job_id: job.id } });
+    const r = unwrap(await c.from('product_3d_jobs').select('*').eq('id', job.id).maybeSingle());
+    return r ? mapJob(r) : job;
+  } catch { return job; }
+}
+
+Object.assign(supa, {
+  async uploadMedia(productId, file, { alt, onProgress } = {}) {
+    await requireAdminSupa();
+    const info = await validateMediaFile(file);
+    const c = await sb();
+    const p = await supaProductRow(c, productId);
+    if (typeof onProgress === 'function') onProgress(0);
+    const id = uuid();
+    const path = `products/${p.id}/${id}.${info.ext}`;
+    const up = await c.storage.from(bucketName()).upload(path, file, { contentType: info.mime, cacheControl: '31536000', upsert: false });
+    if (up.error) unwrap({ error: up.error });
+    const url = c.storage.from(bucketName()).getPublicUrl(path).data.publicUrl;
+    if (typeof onProgress === 'function') onProgress(1);
+    const item = { id, type: info.type, url, poster: null, alt: str(alt, 300) || p.name, sort: p.media.length, is_cover: false,
+      source: 'upload', status: 'ready', path, mime: info.mime, size: info.size };
+    p.media.push(item);
+    try { await supaSaveMedia(c, p); } catch (e) { await c.storage.from(bucketName()).remove([path]); throw e; }
+    const out = clone(item);
+    if (info.type === 'image' && CFG().AUTO_3D !== false) {
+      try { out.job = await supa.request3D(p.id, id); } catch { /* upload succeeded; 3D can be requested later */ }
+    }
+    return out;
+  },
+  async deleteMedia(productId, mediaId) {
+    await requireAdminSupa();
+    const c = await sb(); const p = await supaProductRow(c, productId);
+    const m = p.media.find((x) => x.id === mediaId);
+    if (!m) throw err('not_found', 'Media not found');
+    const gone = p.media.filter((x) => x.id === mediaId || x.source_media_id === mediaId);
+    p.media = p.media.filter((x) => !gone.includes(x));
+    const list = await supaSaveMedia(c, p);
+    const paths = gone.map(storagePathOf).filter(Boolean);
+    if (paths.length) await c.storage.from(bucketName()).remove(paths); // best effort; row is already updated
+    return list;
+  },
+  async reorderMedia(productId, ids) {
+    await requireAdminSupa();
+    const c = await sb(); const p = await supaProductRow(c, productId);
+    if (!Array.isArray(ids) || new Set(ids).size !== ids.length || ids.some((i) => !p.media.some((m) => m.id === i))) throw err('validation', 'Invalid media order');
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    const rest = p.media.filter((m) => !rank.has(m.id));
+    p.media = [...p.media.filter((m) => rank.has(m.id)).sort((a, b) => rank.get(a.id) - rank.get(b.id)), ...rest];
+    p.media.forEach((m, i) => { m.sort = i; });
+    return supaSaveMedia(c, p);
+  },
+  async setCover(productId, mediaId) {
+    await requireAdminSupa();
+    const c = await sb(); const p = await supaProductRow(c, productId);
+    const m = p.media.find((x) => x.id === mediaId);
+    if (!m) throw err('not_found', 'Media not found');
+    if (m.type !== 'image') throw err('validation', 'Cover must be an image');
+    p.media.forEach((x) => { x.is_cover = x.id === mediaId; });
+    return supaSaveMedia(c, p);
+  },
+  async request3D(productId, mediaId) {
+    const u = await requireAdminSupa();
+    const c = await sb(); const p = await supaProductRow(c, productId);
+    const src = p.media.find((x) => x.id === mediaId);
+    if (!src) throw err('not_found', 'Media not found');
+    if (src.type !== 'image') throw err('validation', 'Only images can be converted to 3D');
+    // persist legacy-derived media first so the Edge Function can find the source image
+    await supaSaveMedia(c, p);
+    const row = unwrap(await c.from('product_3d_jobs').insert({ product_id: p.id, source_media_id: mediaId, status: 'queued', created_by: u.id }).select('*').single());
+    let job = mapJob(row);
+    try {
+      await c.functions.invoke(CFG().FUNCTION_3D || 'generate-3d', { body: { action: 'advance', job_id: job.id } });
+      const r = unwrap(await c.from('product_3d_jobs').select('*').eq('id', job.id).maybeSingle());
+      if (r) job = mapJob(r);
+    } catch { /* stays queued; get3DJob() will nudge it again */ }
+    return job;
+  },
+  async get3DJob(jobId) {
+    await requireAdminSupa();
+    const c = await sb();
+    const r = unwrap(await c.from('product_3d_jobs').select('*').eq('id', jobId).maybeSingle());
+    return r ? nudgeJob(c, mapJob(r)) : null;
+  },
+  async list3DJobs(productId) {
+    await requireAdminSupa();
+    const c = await sb(); const p = await supaProductRow(c, productId);
+    const rows = unwrap(await c.from('product_3d_jobs').select('*').eq('product_id', p.id).order('created_at', { ascending: false }));
+    return Promise.all(rows.map((r) => nudgeJob(c, mapJob(r))));
+  },
+  async getPreferences() {
+    const base = localPrefs();
+    const u = await supaUser();
+    if (!u) return base;
+    const c = await sb();
+    const { data } = await c.from('profiles').select('preferences').eq('id', u.id).maybeSingle();
+    const remote = (data && data.preferences && typeof data.preferences === 'object') ? data.preferences : {};
+    const merged = { ...base };
+    for (const k of Object.keys(PREF_VALIDATORS)) { const v = PREF_VALIDATORS[k](remote[k]); if (v !== undefined) merged[k] = v; }
+    if (merged.lang) rawLang.set(merged.lang); // mirror
+    return merged;
+  },
+  async setPreferences(patch) {
+    const c0 = cleanPrefs(patch);
+    await local.setPreferences(c0); // always mirror locally (guests, offline)
+    const u = await supaUser();
+    if (u) {
+      const c = await sb();
+      const { data } = await c.from('profiles').select('preferences').eq('id', u.id).maybeSingle();
+      const next = { ...((data && data.preferences) || {}), ...c0 };
+      unwrap(await c.from('profiles').update({ preferences: next }).eq('id', u.id).select('id').single());
+    }
+    return supa.getPreferences();
+  }
+});
+
+/* ====================================================================== */
 const impl = mode === 'supabase' ? supa : local;
 export const listCategories = (...a) => impl.listCategories(...a);
 export const listProducts = (...a) => impl.listProducts(...a);
@@ -628,4 +1045,13 @@ export const adminDeleteProduct = (...a) => impl.adminDeleteProduct(...a);
 export const adminListCoupons = (...a) => impl.adminListCoupons(...a);
 export const adminUpsertCoupon = (...a) => impl.adminUpsertCoupon(...a);
 export const adminStats = (...a) => impl.adminStats(...a);
+export const uploadMedia = (...a) => impl.uploadMedia(...a);
+export const deleteMedia = (...a) => impl.deleteMedia(...a);
+export const reorderMedia = (...a) => impl.reorderMedia(...a);
+export const setCover = (...a) => impl.setCover(...a);
+export const request3D = (...a) => impl.request3D(...a);
+export const get3DJob = (...a) => impl.get3DJob(...a);
+export const list3DJobs = (...a) => impl.list3DJobs(...a);
+export const getPreferences = (...a) => impl.getPreferences(...a);
+export const setPreferences = (...a) => impl.setPreferences(...a);
 export { COUPON_DEFAULT };
