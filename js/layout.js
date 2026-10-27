@@ -195,7 +195,7 @@ function chromeHTML() {
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="${escapeHtml(t('nav.menu'))}" aria-hidden="true" tabindex="-1">
   <div class="drawer-head"><img src="${LOGO}" alt="JP's Logistics & More" width="96" height="46"><button type="button" class="icon-btn" data-close-drawer aria-label="${escapeHtml(t('nav.close'))}">${icon('close')}</button></div>
-  <nav class="drawer-nav" aria-label="${escapeHtml(t('nav.menu'))}">
+  <nav class="drawer-nav" aria-label="${escapeHtml(t('nav.main'))}">
     <a href="index.html">${icon('bag')}${escapeHtml(t('nav.home'))}</a>
     <a href="shop.html">${icon('tag')}${escapeHtml(t('nav.all_products'))}</a>
     <a href="wishlist.html">${icon('heart')}${escapeHtml(t('nav.wishlist'))}</a>
@@ -268,7 +268,7 @@ function setupDrawer() {
   const drawer = document.getElementById('drawer'), scrim = document.getElementById('scrim'), burger = document.getElementById('burger');
   const open = () => {
     lastFocus = document.activeElement;
-    drawer.classList.add('open'); drawer.setAttribute('aria-hidden', 'false'); scrim.hidden = false;
+    drawer.inert = false; drawer.classList.add('open'); drawer.setAttribute('aria-hidden', 'false'); scrim.hidden = false;
     requestAnimationFrame(() => scrim.classList.add('show'));
     burger.setAttribute('aria-expanded', 'true'); document.body.classList.add('no-scroll');
     drawer.focus();
