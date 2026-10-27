@@ -1,0 +1,66 @@
+// Strings for debit-card payments (Stripe-hosted). Registered on import.
+import { addMessages } from './i18n.js';
+
+addMessages('en', {
+  'payment.logos_label': 'Accepted cards: Visa, Mastercard, American Express, Discover',
+  'payment.secure_alt': 'Secure payment',
+  'payment.secure_title': 'Secure payment.',
+  'payment.secure_text': 'Pay by debit card through Stripe. Your card details never touch our site.',
+  'checkout.pm.debit_card': 'Debit card', 'checkout.pm.debit_card_hint': 'Visa, Mastercard and more. You pay on Stripe’s secure page.',
+  'checkout.debit_note': 'After you place the order you are sent to Stripe’s secure page to enter your card. We never see or store your card number.',
+  'checkout.pay_card': 'Place order and pay by card', 'checkout.redirecting': 'Redirecting to secure payment…',
+  'checkout.err_card': 'We could not start the card payment. Your order was saved; open it to try again.',
+  'checkout.recommended': 'Recommended',
+  'demo.badge': 'DEMO MODE', 'demo.title': 'Demo payment',
+  'demo.text': 'Card payments are not connected yet, so this is a demo screen. No card is charged and no card details are asked for.',
+  'demo.total': 'Amount to pay', 'demo.simulate': 'Simulate successful payment (demo)', 'demo.cancel': 'Cancel payment (demo)',
+  'order.paid_ok': 'Payment received', 'order.paid_ok_sub': 'Thank you! Your card payment was successful.',
+  'order.paid_checking': 'Confirming your payment…', 'order.paid_checking_sub': 'This usually takes a few seconds.',
+  'order.pay_cancelled': 'Payment cancelled', 'order.pay_cancelled_sub': 'Your order is saved but not paid yet. You can try again.',
+  'order.pay_unpaid': 'Payment not completed yet', 'order.try_again': 'Try again', 'order.pay_now': 'Pay now by card',
+  'order.status.paid_badge': 'Paid', 'order.pay_demo_tag': 'Demo payment',
+  'order.pay.debit_card': 'Pay {total} by debit card on Stripe’s secure page. Your card details are never shared with us.',
+  'order.pay_err': 'Could not open the payment page. Please try again.'
+});
+addMessages('fr', {
+  'payment.logos_label': 'Cartes acceptées : Visa, Mastercard, American Express, Discover',
+  'payment.secure_alt': 'Paiement sécurisé',
+  'payment.secure_title': 'Paiement sécurisé.',
+  'payment.secure_text': 'Payez par carte de débit via Stripe. Vos données de carte ne passent jamais par notre site.',
+  'checkout.pm.debit_card': 'Carte de débit', 'checkout.pm.debit_card_hint': 'Visa, Mastercard et plus. Vous payez sur la page sécurisée de Stripe.',
+  'checkout.debit_note': 'Après avoir passé la commande, vous êtes redirigé vers la page sécurisée de Stripe pour saisir votre carte. Nous ne voyons ni ne conservons jamais votre numéro de carte.',
+  'checkout.pay_card': 'Commander et payer par carte', 'checkout.redirecting': 'Redirection vers le paiement sécurisé…',
+  'checkout.err_card': 'Impossible de lancer le paiement par carte. Votre commande est enregistrée ; ouvrez-la pour réessayer.',
+  'checkout.recommended': 'Recommandé',
+  'demo.badge': 'MODE DÉMO', 'demo.title': 'Paiement de démonstration',
+  'demo.text': 'Le paiement par carte n’est pas encore connecté : il s’agit d’un écran de démonstration. Aucune carte n’est débitée et aucune donnée de carte n’est demandée.',
+  'demo.total': 'Montant à payer', 'demo.simulate': 'Simuler un paiement réussi (démo)', 'demo.cancel': 'Annuler le paiement (démo)',
+  'order.paid_ok': 'Paiement reçu', 'order.paid_ok_sub': 'Merci ! Votre paiement par carte a réussi.',
+  'order.paid_checking': 'Confirmation de votre paiement…', 'order.paid_checking_sub': 'Cela prend généralement quelques secondes.',
+  'order.pay_cancelled': 'Paiement annulé', 'order.pay_cancelled_sub': 'Votre commande est enregistrée mais pas encore payée. Vous pouvez réessayer.',
+  'order.pay_unpaid': 'Paiement non finalisé', 'order.try_again': 'Réessayer', 'order.pay_now': 'Payer maintenant par carte',
+  'order.status.paid_badge': 'Payée', 'order.pay_demo_tag': 'Paiement démo',
+  'order.pay.debit_card': 'Payez {total} par carte de débit sur la page sécurisée de Stripe. Vos données de carte ne nous sont jamais transmises.',
+  'order.pay_err': 'Impossible d’ouvrir la page de paiement. Veuillez réessayer.'
+});
+addMessages('ht', {
+  'payment.logos_label': 'Kat nou aksepte: Visa, Mastercard, American Express, Discover',
+  'payment.secure_alt': 'Peman an sekirite',
+  'payment.secure_title': 'Peman an sekirite.',
+  'payment.secure_text': 'Peye ak kat debi atravè Stripe. Enfòmasyon kat ou pa janm pase sou sit nou an.',
+  'checkout.pm.debit_card': 'Kat debi', 'checkout.pm.debit_card_hint': 'Visa, Mastercard ak lòt. Ou peye sou paj sekirite Stripe a.',
+  'checkout.debit_note': 'Apre ou fin pase kòmand lan, n ap voye ou sou paj sekirite Stripe pou ou antre kat ou. Nou pa janm wè ni kenbe nimewo kat ou.',
+  'checkout.pay_card': 'Pase kòmand epi peye ak kat', 'checkout.redirecting': 'N ap voye w sou peman an sekirite…',
+  'checkout.err_card': 'Nou pa t ka kòmanse peman ak kat la. Kòmand ou anrejistre; louvri l pou ou eseye ankò.',
+  'checkout.recommended': 'Rekòmande',
+  'demo.badge': 'MOD DEMO', 'demo.title': 'Peman demo',
+  'demo.text': 'Peman ak kat poko konekte, kidonk sa a se yon paj demo. Pa gen kat ki debite e nou pa mande okenn enfòmasyon kat.',
+  'demo.total': 'Montan pou peye', 'demo.simulate': 'Simile yon peman ki reyisi (demo)', 'demo.cancel': 'Anile peman an (demo)',
+  'order.paid_ok': 'Peman resevwa', 'order.paid_ok_sub': 'Mèsi! Peman kat ou a pase.',
+  'order.paid_checking': 'N ap konfime peman ou…', 'order.paid_checking_sub': 'Sa pran kèk segonn anjeneral.',
+  'order.pay_cancelled': 'Peman anile', 'order.pay_cancelled_sub': 'Kòmand ou anrejistre men li poko peye. Ou ka eseye ankò.',
+  'order.pay_unpaid': 'Peman an poko fini', 'order.try_again': 'Eseye ankò', 'order.pay_now': 'Peye kounye a ak kat',
+  'order.status.paid_badge': 'Peye', 'order.pay_demo_tag': 'Peman demo',
+  'order.pay.debit_card': 'Peye {total} ak kat debi sou paj sekirite Stripe a. Nou pa janm resevwa enfòmasyon kat ou.',
+  'order.pay_err': 'Nou pa t ka louvri paj peman an. Tanpri eseye ankò.'
+});

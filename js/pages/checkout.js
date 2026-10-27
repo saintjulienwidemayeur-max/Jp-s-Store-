@@ -1,10 +1,12 @@
 import '../i18n.commerce.js';
+import '../i18n.payment.js';
 import '../config.js';
 import { t } from '../i18n.js';
 import { escapeHtml, toast } from '../layout.js';
 import { getCart, clearCart, setQty, removeItem } from '../cart.js';
 import { computeTotals, formatMoney } from '../pricing.js';
-import { validateCoupon, placeOrder, getUser, getProduct } from '../api.js';
+import { validateCoupon, placeOrder, getUser, getProduct, createCardCheckout } from '../api.js';
+import { cardLogosHTML, securePaymentHTML } from '../payment-ui.js';
 
 const root = document.getElementById('main');
 const KEY = 'jps_coupon_code';
@@ -13,17 +15,19 @@ const store = {
   set(v) { try { v ? sessionStorage.setItem(KEY, v) : sessionStorage.removeItem(KEY); } catch {} },
 };
 
-const DEFAULT_PM = [
-  { id: 'moncash' }, { id: 'zelle' }, { id: 'cash_on_delivery' }, { id: 'card_soon', disabled: true },
-];
+const DEFAULT_PM = [{ id: 'debit_card', default: true }, { id: 'moncash' }, { id: 'zelle' }, { id: 'cash_on_delivery' }];
 function paymentMethods() {
   const raw = window.JPS_CONFIG?.PAYMENT_METHODS;
   const list = Array.isArray(raw) && raw.length ? raw : DEFAULT_PM;
   return list.map((m) => {
-    if (typeof m === 'string') return { id: m, disabled: m === 'card_soon' };
+    if (typeof m === 'string') return { id: m };
     const id = m.id || m.key || m.code || m.value;
-    return { id, label: m.label || m.name, disabled: !!(m.disabled || m.coming_soon || m.enabled === false || id === 'card_soon') };
-  }).filter((m) => m.id);
+    return { id, label: m.label || m.name, isDefault: !!m.default, disabled: !!(m.disabled || m.coming_soon || m.enabled === false) };
+  }).filter((m) => m.id && m.id !== 'card_soon');
+}
+function defaultMethod() {
+  const pms = paymentMethods().filter((m) => !m.disabled);
+  return (pms.find((m) => m.isDefault) || pms.find((m) => m.id === 'debit_card') || pms[0] || {}).id;
 }
 function pmLabel(m) {
   const k = `checkout.pm.${m.id}`;
@@ -37,7 +41,7 @@ function pmHint(m) {
 }
 
 let coupon = null;
-let values = { name: '', email: '', phone: '', address: '', city: '', country: 'Haiti', notes: '', payment: 'moncash' };
+let values = { name: '', email: '', phone: '', address: '', city: '', country: 'Haiti', notes: '', payment: 'debit_card' };
 let errors = {};
 let banner = null; // {type,text}
 let stockIssues = {}; // pid -> available
@@ -81,9 +85,13 @@ function render() {
   }
   const tot = computeTotals(lines.map((l) => ({ unit_price: l.price, qty: l.qty })), coupon);
   const pms = paymentMethods();
-  const pmHTML = pms.map((m) => `<label class="${m.disabled ? 'disabled' : ''}">
+  const pmHTML = pms.map((m) => {
+    const card = m.id === 'debit_card';
+    return `<label class="${m.disabled ? 'disabled' : ''}${card ? ' c-pay-card' : ''}">
       <input type="radio" name="payment" value="${escapeHtml(m.id)}" ${m.disabled ? 'disabled' : ''} ${values.payment === m.id ? 'checked' : ''}>
-      <span>${escapeHtml(pmLabel(m))}${m.disabled ? ` <em>(${escapeHtml(t('checkout.coming_soon'))})</em>` : ''}${pmHint(m) ? `<small>${escapeHtml(pmHint(m))}</small>` : ''}</span></label>`).join('');
+      <span class="c-pay-body"><span class="c-pay-name">${escapeHtml(pmLabel(m))}${card ? ` <em class="c-reco">${escapeHtml(t('checkout.recommended'))}</em>` : ''}${m.disabled ? ` <em>(${escapeHtml(t('checkout.coming_soon'))})</em>` : ''}</span>${pmHint(m) ? `<small>${escapeHtml(pmHint(m))}</small>` : ''}${card ? cardLogosHTML({ secure: true }) : ''}</span></label>`;
+  }).join('');
+  const cardSelected = values.payment === 'debit_card';
   const sumLines = lines.map((l) => {
     const avail = stockIssues[l.product_id];
     return `<div class="c-sum-line"><span>${escapeHtml(l.name)} &times; ${l.qty}${avail !== undefined ? `<br><span class="c-stock-warn">${escapeHtml(t('checkout.only_left', { n: avail }))}</span> <button type="button" class="c-link-btn" data-fix="${escapeHtml(String(l.product_id))}">${escapeHtml(avail > 0 ? t('checkout.adjust') : t('cart.remove'))}</button>` : ''}</span><span>${formatMoney(l.price * l.qty)}</span></div>`;
@@ -104,6 +112,7 @@ function render() {
         </section>
         <section class="c-card"><fieldset class="c-pay"><legend>${escapeHtml(t('checkout.payment'))}</legend>${pmHTML}
           ${errors.payment ? `<p class="c-err" role="alert">${escapeHtml(errors.payment)}</p>` : ''}</fieldset>
+          ${cardSelected ? `<p class="c-msg c-debit-note">${escapeHtml(t('checkout.debit_note'))}</p>` : ''}
           <p class="c-msg">${escapeHtml(t('checkout.no_card'))}</p></section>
       </div>
       <aside class="c-card c-sticky" aria-label="${escapeHtml(t('checkout.summary'))}">
@@ -117,9 +126,10 @@ function render() {
         </dl>
         ${coupon && !tot.couponApplied ? `<p class="c-msg warn">${escapeHtml(t('cart.coupon_min', { code: coupon.code, min: formatMoney(coupon.min_subtotal ?? 10), percent: coupon.percent }))}</p>` : ''}
         <div class="c-actions">
-          <button class="btn btn-primary" type="submit" ${busy ? 'disabled' : ''}>${escapeHtml(busy ? t('checkout.placing') : t('checkout.place_order'))}</button>
+          <button class="btn btn-primary" type="submit" ${busy ? 'disabled' : ''}>${escapeHtml(busy ? (cardSelected ? t('checkout.redirecting') : t('checkout.placing')) : (cardSelected ? t('checkout.pay_card') : t('checkout.place_order')))}</button>
           <a class="btn btn-outline" href="cart.html">${escapeHtml(t('checkout.back_cart'))}</a>
         </div>
+        ${securePaymentHTML({ compact: true })}
       </aside>
     </form>`;
 }
@@ -133,7 +143,7 @@ root.addEventListener('input', (e) => {
   const f = e.target.closest('form'); if (!f) return;
   readForm(f);
 });
-root.addEventListener('change', (e) => { if (e.target.name === 'payment') { values.payment = e.target.value; } });
+root.addEventListener('change', (e) => { if (e.target.name === 'payment') { readForm(e.target.form); values.payment = e.target.value; render(); root.querySelector('input[name=payment]:checked')?.focus(); } });
 root.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-fix]'); if (!b) return;
   const pid = b.dataset.fix;
@@ -169,7 +179,16 @@ root.addEventListener('submit', async (e) => {
     });
     clearCart(); store.set('');
     try { sessionStorage.setItem('jps_fresh_' + order.order_number, '1'); } catch {}
-    location.href = `order.html?n=${encodeURIComponent(order.order_number)}&e=${encodeURIComponent(values.email.trim())}`;
+    const q = `n=${encodeURIComponent(order.order_number)}&e=${encodeURIComponent(values.email.trim())}`;
+    if (order.payment_method === 'debit_card') {
+      // Hosted payment: Stripe (or the DEMO screen in local mode). No card data is ever handled on this site.
+      try {
+        const r = await createCardCheckout({ order_number: order.order_number, email: values.email.trim() });
+        location.href = r.url;
+      } catch { location.href = `order.html?${q}&cancelled=1&perr=1`; } // order is saved; the order page offers "Try again"
+      return;
+    }
+    location.href = `order.html?${q}`;
     return;
   } catch (err) {
     busy = false;
@@ -201,8 +220,7 @@ async function init() {
     const u = await getUser();
     if (u) { values.name = u.name || ''; values.email = u.email || ''; }
   } catch {}
-  const pm = paymentMethods().find((m) => !m.disabled);
-  if (pm) values.payment = pm.id;
+  values.payment = defaultMethod() || values.payment;
   render();
 }
 init();

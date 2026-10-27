@@ -74,6 +74,10 @@ create table if not exists public.orders (
   shipping numeric(10,2) not null default 0,
   total numeric(10,2) not null,
   coupon_code text,
+  payment_status text not null default 'unpaid' check (payment_status in ('unpaid','paid','failed','expired','refunded')), -- migration 003
+  stripe_session_id text,
+  stripe_payment_intent text,
+  paid_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -280,7 +284,7 @@ language sql stable security definer set search_path = public as $$
       from public.order_items i where i.order_id = o.id), '[]'::jsonb),
     'subtotal', o.subtotal, 'discount', o.discount, 'shipping', o.shipping, 'total', o.total,
     'coupon_code', o.coupon_code, 'created_at', o.created_at, 'customer', o.customer,
-    'payment_method', o.payment_method)
+    'payment_method', o.payment_method, 'payment_status', o.payment_status, 'paid_at', o.paid_at)
   from public.orders o where o.id = p_order_id;
 $$;
 revoke all on function public.order_json(uuid) from public, anon, authenticated;
@@ -319,7 +323,7 @@ begin
      or char_length(trim(coalesce(cust->>'address', ''))) not between 1 and 300
      or char_length(trim(coalesce(cust->>'city', ''))) not between 1 and 100
      or char_length(trim(coalesce(cust->>'country', ''))) not between 1 and 100
-     or v_pm is null or v_pm not in ('moncash', 'zelle', 'cash_on_delivery')
+     or v_pm is null or v_pm not in ('debit_card', 'moncash', 'zelle', 'cash_on_delivery')
      or jsonb_typeof(payload->'items') is distinct from 'array'
      or jsonb_array_length(payload->'items') not between 1 and 50 then
     raise exception 'validation';
@@ -404,6 +408,17 @@ begin
   return public.order_json(o.id);
 end $$;
 grant execute on function public.admin_set_order_status(uuid, text) to authenticated;
+
+-- ================================================================ migration 003 (debit card payments via Stripe)
+-- The webhook (service role) is the ONLY writer of payment_status/paid_at/stripe_*; browsers never mark orders paid.
+-- (orders policies already restrict writes to admins; processed_stripe_events has RLS on and NO policies = no public access.)
+create table if not exists public.processed_stripe_events (
+  event_id text primary key,
+  type text not null,
+  received_at timestamptz not null default now()
+);
+alter table public.processed_stripe_events enable row level security;
+revoke all on public.processed_stripe_events from anon, authenticated;
 
 -- ---------------------------------------------------------------- seed (mirrors js/seed.js)
 insert into public.categories (id, slug, name, image, sort_order) values

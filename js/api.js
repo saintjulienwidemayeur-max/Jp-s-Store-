@@ -187,7 +187,7 @@ const local = {
         line_total: roundMoney(l.p.price * l.qty) })),
       subtotal: totals.subtotal, discount: totals.discount, shipping: totals.shipping, total: totals.total,
       coupon_code: totals.couponApplied ? coupon.code : null, created_at: new Date().toISOString(),
-      customer: v.customer, payment_method: v.payment_method
+      customer: v.customer, payment_method: v.payment_method, payment_status: 'unpaid', paid_at: null
     };
     orders.push(order);
     store.set(K.orders, orders);
@@ -199,6 +199,33 @@ const local = {
     const o = store.get(K.orders, []).find((x) => x.order_number.toUpperCase() === String(orderNumber || '').trim().toUpperCase()
       && x.customer.email.toLowerCase() === String(email || '').trim().toLowerCase());
     return o ? clone(o) : null;
+  },
+
+  // Card payment start. Local mode has no Stripe: returns the DEMO payment screen (order.html?demo=1).
+  async createCardCheckout({ order_number, email } = {}) {
+    const o = await local.getOrder(order_number, email);
+    if (!o) throw err('not_found', 'Order not found');
+    if (o.payment_method !== 'debit_card') throw err('validation', 'Order is not a card order');
+    if (o.payment_status === 'paid') throw err('validation', 'Order already paid');
+    return { url: `order.html?n=${encodeURIComponent(o.order_number)}&e=${encodeURIComponent(o.customer.email)}&demo=1`, mode: 'demo' };
+  },
+  // LOCAL DEMO ONLY: marks a debit-card order paid without any card. Refuses in supabase mode (the webhook is the only
+  // thing that may mark a real order paid).
+  async demoMarkPaid(order_number, email) {
+    if (mode !== 'local') throw err('forbidden', 'Demo payments are only available in local mode');
+    await ensureSeeded();
+    const orders = store.get(K.orders, []);
+    const o = orders.find((x) => x.order_number.toUpperCase() === String(order_number || '').trim().toUpperCase()
+      && x.customer.email.toLowerCase() === String(email || '').trim().toLowerCase());
+    if (!o) throw err('not_found', 'Order not found');
+    if (o.payment_method !== 'debit_card') throw err('validation', 'Order is not a card order');
+    if (o.status === 'cancelled') throw err('validation', 'Order cancelled');
+    if (o.payment_status !== 'paid') {
+      o.payment_status = 'paid'; o.paid_at = new Date().toISOString(); o.demo_payment = true;
+      if (o.status === 'pending') o.status = 'paid';
+      store.set(K.orders, orders);
+    }
+    return clone(o);
   },
 
   async listMyOrders() {
@@ -440,7 +467,8 @@ function mapOrder(r) {
     unit_price: Number(i.unit_price), qty: i.qty, line_total: roundMoney(i.unit_price * i.qty) }));
   return { id: r.id, order_number: r.order_number, status: r.status, items, subtotal: Number(r.subtotal), discount: Number(r.discount),
     shipping: Number(r.shipping), total: Number(r.total), coupon_code: r.coupon_code, created_at: r.created_at,
-    customer: r.customer, payment_method: r.payment_method };
+    customer: r.customer, payment_method: r.payment_method,
+    payment_status: r.payment_status || 'unpaid', paid_at: r.paid_at || null };
 }
 async function supaUser() {
   const c = await sb();
@@ -498,6 +526,22 @@ const supa = {
     const c = await sb();
     return unwrap(await c.rpc('track_order', { order_number: String(orderNumber || ''), email: String(email || '') })) || null;
   },
+  async createCardCheckout({ order_number, email } = {}) {
+    const c = await sb();
+    const fn = (CFG().PAYMENTS && CFG().PAYMENTS.function) || 'create-checkout';
+    const { data, error } = await c.functions.invoke(fn, { body: {
+      order_number: String(order_number || ''), email: String(email || ''), origin: globalThis.location ? globalThis.location.origin : undefined } });
+    if (error) {
+      let body = null;
+      try { body = await error.context.json(); } catch { /* not an HTTP error body */ }
+      const code = body && body.error;
+      throw err(code === 'not_found' ? 'not_found' : 'validation',
+        'Could not start the card payment' + (code ? ` (${code})` : ''));
+    }
+    if (!data || !data.url) throw err('validation', 'No payment URL returned');
+    return { url: data.url, mode: 'stripe' };
+  },
+  async demoMarkPaid() { throw err('forbidden', 'Demo payments are only available in local mode'); },
   async listMyOrders() {
     const u = await supaUser(); if (!u) return [];
     const c = await sb();
@@ -1026,6 +1070,8 @@ export const getProduct = (...a) => impl.getProduct(...a);
 export const validateCoupon = (...a) => impl.validateCoupon(...a);
 export const placeOrder = (...a) => impl.placeOrder(...a);
 export const getOrder = (...a) => impl.getOrder(...a);
+export const createCardCheckout = (...a) => impl.createCardCheckout(...a);
+export const demoMarkPaid = (...a) => impl.demoMarkPaid(...a);
 export const listMyOrders = (...a) => impl.listMyOrders(...a);
 export const getWishlist = (...a) => impl.getWishlist(...a);
 export const toggleWishlist = (...a) => impl.toggleWishlist(...a);

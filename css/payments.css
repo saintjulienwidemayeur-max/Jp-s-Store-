@@ -1,0 +1,10 @@
+/* Card-brand logos + secure-payment blurb (loaded by js/payment-ui.js on any page). Uses core tokens only. */
+.pay-logos { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; vertical-align: middle; }
+.pay-logo { width: 40px; height: 26px; display: block; border-radius: 4px; }
+.pay-secure { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding: 12px; border: 1px solid #b9e0c9; border-radius: 12px; background: #f3faf6; font-size: .86rem; color: var(--ink, #111); }
+.pay-secure p { margin: 0; }
+.pay-secure.compact { margin-top: 12px; }
+.pay-footer { padding-top: 8px; padding-bottom: 8px; }
+.pay-footer .pay-secure { background: transparent; border-color: rgba(255,255,255,.25); color: inherit; }
+.pay-footer .pay-logo { box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
+@media (min-width: 700px) { .pay-footer .pay-secure { flex-direction: row; align-items: center; justify-content: space-between; } }
