@@ -198,7 +198,7 @@ module.exports = [
     await page.locator('footer a.foot-lang').click();
     await page.waitForSelector('input[name=lang]');
     h.assert.strictEqual(await page.locator('input[name=lang]').count(), 3);
-    h.assert.match(await page.locator('.lang-cards').innerText(), /Français[\s\S]*Kreyòl ayisyen[\s\S]*English/);
+    h.assert.match(await page.locator('.lang-cards').innerText(), /English[\s\S]*Français[\s\S]*Kreyòl ayisyen/);
     await h.noHScroll(page, 'settings');
 
     for (const [lang, h1, htmlLang, cat] of [['fr', 'Paramètres', 'fr', /catégories/i], ['ht', 'Paramèt', 'ht', /kategori/i], ['en', 'Settings', 'en', /Browse by Categories/]]) {

@@ -1,5 +1,5 @@
 'use strict';
-const { placeOrderViaApi, fillCheckout } = require('./lib');
+const { placeOrderViaApi, fillCheckout, placeFromPayment } = require('./lib');
 
 module.exports = [
   ['sign up, order history, sign out, sign in again; bad password rejected', async (h) => {
@@ -16,7 +16,7 @@ module.exports = [
     await h.go(page, 'checkout.html'); await page.waitForSelector('#checkout-form');
     h.assert.strictEqual(await page.inputValue('#f-email'), 'tester@example.com', 'prefilled from account');
     await fillCheckout(page, { email: 'tester@example.com' });
-    await page.click('#checkout-form button[type=submit]');
+    await placeFromPayment(page, 'moncash');
     await page.waitForURL(/order\.html/); await page.waitForSelector('.c-ordnum');
     const num = (await page.locator('.c-ordnum').innerText()).trim();
     await h.go(page, 'account.html'); await page.waitForSelector('.c-hist');

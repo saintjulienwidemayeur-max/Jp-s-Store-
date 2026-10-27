@@ -2,7 +2,7 @@
 const addFromCard = async (page, slug) => { await page.click(`.pcard[data-slug="${slug}"] [data-add]`); };
 const cartCount = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('jps_cart_v1') || '[]').reduce((n, l) => n + l.qty, 0));
 
-const { fillCheckout } = require('./lib');
+const { fillCheckout, placeFromPayment } = require('./lib');
 
 module.exports = [
   ['wishlist toggle persists across reloads and shows on wishlist page', async (h) => {
@@ -91,14 +91,14 @@ module.exports = [
     await fillCheckout(page);
     // stock drops to 1 behind our back
     await page.evaluate(() => { const l = JSON.parse(localStorage.getItem('jps_products')); l.find((p) => p.slug === 'haiti-scarf').stock = 1; localStorage.setItem('jps_products', JSON.stringify(l)); });
-    await page.click('#checkout-form button[type=submit]');
+    await placeFromPayment(page, 'moncash');
     await page.waitForSelector('.c-alert.err');
     await page.waitForSelector('.c-stock-warn');
     h.assert.match(await page.locator('.c-stock-warn').innerText(), /1/);
     await page.click('[data-fix]');
     await page.waitForFunction(() => !document.querySelector('.c-stock-warn'));
     // form values survived
-    h.assert.strictEqual(await page.inputValue('#f-email'), 'marie@example.com');
+    h.assert.match(await page.locator('#checkout-form').innerText(), /marie@example\.com/);
     // now deactivate coupon behind our back -> invalid_coupon
     await page.evaluate(() => { const l = JSON.parse(localStorage.getItem('jps_coupons')); l[0].active = false; localStorage.setItem('jps_coupons', JSON.stringify(l)); });
     await page.click('#checkout-form button[type=submit]');
@@ -115,24 +115,26 @@ module.exports = [
     await h.go(page, 'checkout.html'); await page.waitForSelector('#checkout-form');
     await page.click('#checkout-form button[type=submit]');
     await page.waitForSelector('.c-err');
-    h.assert.ok((await page.locator('.c-err').count()) >= 4);
+    h.assert.ok((await page.locator('.c-err').count()) >= 3);
     h.assert.strictEqual(await page.evaluate(() => document.activeElement.id), 'f-name');
-    // disabled card option
-    h.assert.strictEqual(await page.locator('input[name=payment][value=card_soon]').isDisabled(), true);
+    // per-step validation keeps us on step 1; debit card is the default payment, card_soon is gone
+    h.assert.strictEqual(await page.locator('#checkout-form').getAttribute('data-step'), 'contact');
+    await fillCheckout(page);
+    h.assert.strictEqual(await page.locator('input[name=payment][value=card_soon]').count(), 0);
+    h.assert.strictEqual(await page.locator('input[name=payment][value=debit_card]').isChecked(), true);
   }],
 
   ['full checkout for every enabled payment method, order page and guest tracking', async (h) => {
     const methods = await (async () => { const cfg = require('fs').readFileSync(require('path').join(__dirname, '../../js/config.js'), 'utf8'); return [...cfg.matchAll(/id: '(\w+)', label: '[^']*', enabled: true/g)].map((m) => m[1]); })();
-    h.assert.deepStrictEqual(methods, ['moncash', 'zelle', 'cash_on_delivery']);
+    h.assert.deepStrictEqual(methods, ['debit_card', 'moncash', 'zelle', 'cash_on_delivery']);
     const page = await h.page();
-    for (const m of methods) {
+    for (const m of methods.filter((x) => x !== 'debit_card')) { // debit_card has its own spec (payment.spec.js)
       await h.go(page, 'shop.html'); await page.waitForSelector('.pcard');
       await addFromCard(page, 'haiti-scarf');
       await h.go(page, 'cart.html'); await page.fill('#coupon-input', 'HT26'); await page.click('#coupon-form button'); await page.waitForSelector('.c-discount');
       await h.go(page, 'checkout.html'); await page.waitForSelector('#checkout-form');
       const v = await fillCheckout(page);
-      await page.check(`input[name=payment][value=${m}]`);
-      await page.click('#checkout-form button[type=submit]');
+      await placeFromPayment(page, m);
       await page.waitForURL(/order\.html\?n=JPS-\d{6}-[A-Z0-9]{4}&e=/);
       await page.waitForSelector('.c-ordnum');
       const num = (await page.locator('.c-ordnum').innerText()).trim();

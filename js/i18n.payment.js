@@ -64,3 +64,39 @@ addMessages('ht', {
   'order.pay.debit_card': 'Peye {total} ak kat debi sou paj sekirite Stripe a. Nou pa janm resevwa enfòmasyon kat ou.',
   'order.pay_err': 'Nou pa t ka louvri paj peman an. Tanpri eseye ankò.'
 });
+
+// Multi-step checkout + overrides of copy that used to say "card payment coming soon"
+// (these override keys from i18n.js / i18n.commerce.js on every page that imports this module).
+addMessages('en', {
+  'checkout.subtitle': 'Shipping is included. Pay securely by debit card.',
+  'home.vp.3.d': 'Pay by debit card (Visa, Mastercard) through Stripe, or MonCash and Zelle. We never see your card details.',
+  'info.faq.a3': 'Debit card (Visa, Mastercard and more) through Stripe’s secure page, plus MonCash, Zelle and cash on delivery. We never collect or store card details on this site.',
+  'checkout.steps_label': 'Checkout steps', 'checkout.step.contact': 'Contact', 'checkout.step.address': 'Delivery', 'checkout.step.payment': 'Payment', 'checkout.step.review': 'Review',
+  'checkout.step_of': 'Step {n} of {total}: {name}',
+  'checkout.h.contact': 'Your contact details', 'checkout.h.address': 'Delivery address', 'checkout.h.payment': 'Payment method', 'checkout.h.review': 'Review and place your order',
+  'checkout.next': 'Continue', 'checkout.back': 'Back', 'checkout.edit': 'Edit', 'checkout.show_summary': 'Order summary',
+  'checkout.ship_banner': 'Shipping included: no extra delivery fee.', 'checkout.review_hint': 'Check everything below, then place your order.',
+  'checkout.items': 'Items', 'checkout.coupon_label': 'Coupon'
+});
+addMessages('fr', {
+  'checkout.subtitle': 'Livraison incluse. Payez en toute sécurité par carte de débit.',
+  'home.vp.3.d': 'Payez par carte de débit (Visa, Mastercard) via Stripe, ou par MonCash et Zelle. Nous ne voyons jamais vos données de carte.',
+  'info.faq.a3': 'Carte de débit (Visa, Mastercard et plus) via la page sécurisée de Stripe, ainsi que MonCash, Zelle et paiement à la livraison. Nous ne collectons ni ne conservons jamais de données de carte sur ce site.',
+  'checkout.steps_label': 'Étapes de la commande', 'checkout.step.contact': 'Contact', 'checkout.step.address': 'Livraison', 'checkout.step.payment': 'Paiement', 'checkout.step.review': 'Récapitulatif',
+  'checkout.step_of': 'Étape {n} sur {total} : {name}',
+  'checkout.h.contact': 'Vos coordonnées', 'checkout.h.address': 'Adresse de livraison', 'checkout.h.payment': 'Mode de paiement', 'checkout.h.review': 'Vérifiez et passez votre commande',
+  'checkout.next': 'Continuer', 'checkout.back': 'Retour', 'checkout.edit': 'Modifier', 'checkout.show_summary': 'Récapitulatif de la commande',
+  'checkout.ship_banner': 'Livraison incluse : aucun frais de livraison supplémentaire.', 'checkout.review_hint': 'Vérifiez tout ci-dessous, puis passez votre commande.',
+  'checkout.items': 'Articles', 'checkout.coupon_label': 'Code promo'
+});
+addMessages('ht', {
+  'checkout.subtitle': 'Livrezon enkli. Peye an sekirite ak kat debi.',
+  'home.vp.3.d': 'Peye ak kat debi (Visa, Mastercard) atravè Stripe, oswa ak MonCash ak Zelle. Nou pa janm wè enfòmasyon kat ou.',
+  'info.faq.a3': 'Kat debi (Visa, Mastercard ak lòt) sou paj sekirite Stripe a, ansanm ak MonCash, Zelle ak peman lè w resevwa. Nou pa janm kolekte ni kenbe enfòmasyon kat sou sit sa a.',
+  'checkout.steps_label': 'Etap kòmand lan', 'checkout.step.contact': 'Kontak', 'checkout.step.address': 'Livrezon', 'checkout.step.payment': 'Peman', 'checkout.step.review': 'Revizyon',
+  'checkout.step_of': 'Etap {n} sou {total}: {name}',
+  'checkout.h.contact': 'Enfòmasyon kontak ou', 'checkout.h.address': 'Adrès livrezon', 'checkout.h.payment': 'Metòd peman', 'checkout.h.review': 'Verifye epi pase kòmand ou',
+  'checkout.next': 'Kontinye', 'checkout.back': 'Retounen', 'checkout.edit': 'Modifye', 'checkout.show_summary': 'Rezime kòmand lan',
+  'checkout.ship_banner': 'Livrezon enkli: pa gen frè livrezon anplis.', 'checkout.review_hint': 'Verifye tout bagay anba a, apresa pase kòmand ou.',
+  'checkout.items': 'Atik', 'checkout.coupon_label': 'Kòd pwomo'
+});

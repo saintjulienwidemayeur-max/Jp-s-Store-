@@ -34,10 +34,12 @@ export function securePaymentHTML({ compact = false } = {}) {
     ${cardLogosHTML({ secure: true })}</div>`;
 }
 
-// Footer hook (js/layout.js is owned by another agent). Add ONE line to layout.js after the footer is
-// mounted, e.g. right after `f.innerHTML = footerHTML();` in the mount code:
-//   import('./payment-ui.js').then((m) => m.mountFooterPayments());
-// It inserts the secure-payment block just above `.foot-bar`, and is idempotent.
+// Footer + value-prop hook (js/layout.js is owned by another agent). Add ONE line to layout.js, right after the
+// footer is mounted (e.g. after `f.innerHTML = footerHTML();`):
+//   import('./payment-ui.js').then((m) => m.mountPaymentChrome());
+// It (1) inserts the secure-payment logo block above `.foot-bar` and (2) appends the card logos to the 3rd
+// value-prop ("Secure Payment") on pages that have one, even if it renders later. Idempotent. Importing the module
+// also registers js/i18n.payment.js, which updates home.vp.3.d / info.faq.a3 ("card coming soon" copy).
 export function mountFooterPayments(doc = document) {
   const footer = doc.querySelector('.site-footer');
   if (!footer || footer.querySelector('.pay-footer')) return;
@@ -46,6 +48,19 @@ export function mountFooterPayments(doc = document) {
   wrap.className = 'container pay-footer';
   wrap.innerHTML = securePaymentHTML({ compact: true });
   if (bar) bar.before(wrap); else footer.append(wrap);
+}
+export function mountValuePropLogos(doc = document) {
+  const vp = doc.querySelectorAll('.vp-grid .vp')[2];
+  if (!vp) return false;
+  if (!vp.querySelector('.pay-logos')) vp.insertAdjacentHTML('beforeend', cardLogosHTML());
+  return true;
+}
+export function mountPaymentChrome(doc = document) {
+  mountFooterPayments(doc);
+  if (mountValuePropLogos(doc) || typeof MutationObserver === 'undefined') return;
+  const mo = new MutationObserver(() => { if (mountValuePropLogos(doc)) mo.disconnect(); });
+  mo.observe(doc.body, { childList: true, subtree: true });
+  setTimeout(() => mo.disconnect(), 8000);
 }
 
 export { addMessages };

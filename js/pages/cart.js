@@ -1,4 +1,6 @@
 import '../i18n.commerce.js';
+import '../i18n.payment.js';
+import { securePaymentHTML } from '../payment-ui.js';
 import { t } from '../i18n.js';
 import { escapeHtml, toast } from '../layout.js';
 import { getCart, setQty, removeItem, onCartChange } from '../cart.js';
@@ -81,6 +83,7 @@ function render() {
           <a class="btn btn-primary" href="checkout.html">${escapeHtml(t('cart.checkout'))}</a>
           <a class="btn btn-outline" href="shop.html">${escapeHtml(t('cart.continue'))}</a>
         </div>
+        ${securePaymentHTML({ compact: true })}
       </aside>
     </div>`;
   if (focusSel) { root.querySelector(focusSel)?.focus(); focusSel = null; }

@@ -12,7 +12,7 @@
 .gal-prev { left: 8px; } .gal-next { right: 8px; }
 .gal-prev .ic { transform: rotate(180deg); }
 .gal-count { position: absolute; right: 10px; bottom: 10px; z-index: 3; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: rgba(13, 22, 60, .72); color: #fff; pointer-events: none; }
-.gal-main[data-type="model3d"] .gal-nav { top: auto; bottom: 10px; translate: none; width: 40px; height: 40px; }
+.gal-main[data-type="model3d"] .gal-nav { display: none; } /* the viewer owns pointer gestures; use the thumbnails */
 .thumbs { padding: 2px; scroll-snap-type: x proximity; }
 .thumb { position: relative; scroll-snap-align: start; display: grid; place-items: center; cursor: pointer; }
 .thumb-video { background: #0b1230; }

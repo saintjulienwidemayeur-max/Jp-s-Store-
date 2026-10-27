@@ -45,6 +45,7 @@ module.exports = [
       problems.push(...(await page.evaluate(AUDIT)).map((x) => `admin/${tab}: ${x}`));
     }
     // overlay + drawer + validation errors state
+    await h.go(page, 'shop.html'); await page.waitForSelector('.pcard'); await page.click('.pcard[data-slug="haiti-scarf"] [data-add]');
     await h.go(page, 'checkout.html'); await page.waitForSelector('#checkout-form');
     await page.click('#checkout-form button[type=submit]'); await page.waitForSelector('.c-err');
     problems.push(...(await page.evaluate(AUDIT)).map((x) => `checkout-errors: ${x}`));

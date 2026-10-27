@@ -47,11 +47,25 @@ function makeHarness(browser, base, viewport, vpName) {
   };
   return h;
 }
+// Multi-step checkout: fills Contact -> Delivery and leaves the page on the PAYMENT step.
 async function fillCheckout(page, over = {}) {
   const v = { name: 'Marie Jean', email: 'marie@example.com', phone: '+509 3700 1234', address: '12 Rue Capois', city: 'Port-au-Prince', country: 'Haiti', notes: 'Call first', ...over };
-  for (const k of ['name', 'email', 'phone', 'address', 'city', 'country']) await page.fill(`#f-${k}`, v[k]);
+  const next = () => page.click('#checkout-form button[type=submit]');
+  for (const k of ['name', 'email', 'phone']) await page.fill(`#f-${k}`, v[k]);
+  await next();
+  await page.waitForSelector('#f-address');
+  for (const k of ['address', 'city', 'country']) await page.fill(`#f-${k}`, v[k]);
   await page.fill('#f-notes', v.notes);
+  await next();
+  await page.waitForSelector('input[name=payment]');
   return v;
+}
+// From the PAYMENT step: optionally pick a method, continue to REVIEW and place the order.
+async function placeFromPayment(page, method) {
+  if (method) await page.check(`input[name=payment][value=${method}]`);
+  await page.click('#checkout-form button[type=submit]');
+  await page.waitForSelector('#checkout-form[data-step=review]');
+  await page.click('#checkout-form button[type=submit]');
 }
 // place an order straight through the data layer (setup helper)
 async function placeOrderViaApi(page, { slug = 'haiti-scarf', qty = 1, email = 'buyer@example.com', name = 'Buyer', notes = '', payment = 'moncash', coupon } = {}) {
@@ -62,4 +76,4 @@ async function placeOrderViaApi(page, { slug = 'haiti-scarf', qty = 1, email = '
       items: [{ product_id: p.id, qty: a.qty }], coupon_code: a.coupon, payment_method: a.payment });
   }, { slug, qty, email, name, notes, payment, coupon });
 }
-module.exports = { makeHarness, fillCheckout, placeOrderViaApi };
+module.exports = { makeHarness, fillCheckout, placeFromPayment, placeOrderViaApi };
