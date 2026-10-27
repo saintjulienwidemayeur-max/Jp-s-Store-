@@ -54,7 +54,7 @@ function render() {
   const min = coupon?.min_subtotal ?? 10;
   let note = msg;
   if (coupon && !tot.couponApplied && tot.couponReason === 'min_subtotal') {
-    note = { type: 'warn', text: t('cart.coupon_min', { code: coupon.code, min: formatMoney(min) }) };
+    note = { type: 'warn', text: t('cart.coupon_min', { code: coupon.code, min: formatMoney(min), percent: coupon?.percent ?? 15 }) };
   } else if (!note && coupon && tot.couponApplied) {
     note = { type: 'ok', text: t('cart.coupon_ok', { code: coupon.code, percent: coupon.percent }) };
   }
@@ -114,7 +114,7 @@ root.addEventListener('submit', async (e) => {
       coupon = null; store.set('');
       const min = v.coupon?.min_subtotal ?? 10;
       msg = v.reason === 'min_subtotal'
-        ? { type: 'warn', text: t('cart.coupon_min', { code: v.coupon?.code || code.toUpperCase(), min: formatMoney(min) }) }
+        ? { type: 'warn', text: t('cart.coupon_min', { code: v.coupon?.code || code.toUpperCase(), min: formatMoney(min), percent: coupon?.percent ?? 15 }) }
         : { type: 'err', text: t(v.reason === 'expired' ? 'cart.coupon_expired' : 'cart.coupon_invalid') };
     }
   } catch (err) {

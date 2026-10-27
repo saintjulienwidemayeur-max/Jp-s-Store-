@@ -115,7 +115,7 @@ function render() {
           <div><dt>${escapeHtml(t('cart.shipping'))}</dt><dd><span class="c-badge-ship">${escapeHtml(t('cart.shipping_included'))}</span></dd></div>
           <div class="c-grand"><dt>${escapeHtml(t('cart.total'))}</dt><dd>${formatMoney(tot.total)}</dd></div>
         </dl>
-        ${coupon && !tot.couponApplied ? `<p class="c-msg warn">${escapeHtml(t('cart.coupon_min', { code: coupon.code, min: formatMoney(coupon.min_subtotal ?? 10) }))}</p>` : ''}
+        ${coupon && !tot.couponApplied ? `<p class="c-msg warn">${escapeHtml(t('cart.coupon_min', { code: coupon.code, min: formatMoney(coupon.min_subtotal ?? 10), percent: coupon.percent }))}</p>` : ''}
         <div class="c-actions">
           <button class="btn btn-primary" type="submit" ${busy ? 'disabled' : ''}>${escapeHtml(busy ? t('checkout.placing') : t('checkout.place_order'))}</button>
           <a class="btn btn-outline" href="cart.html">${escapeHtml(t('checkout.back_cart'))}</a>

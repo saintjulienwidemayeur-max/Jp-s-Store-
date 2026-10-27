@@ -7,7 +7,8 @@
 .c-empty h2 { color: var(--ink, #111); font-size: 1.3rem; }
 .c-empty img { width: 96px; height: 96px; object-fit: contain; opacity: .9; margin-bottom: 12px; }
 
-.c-layout { display: grid; gap: 20px; grid-template-columns: 1fr; align-items: start; }
+.c-layout { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.c-layout > * { min-width: 0; }
 @media (min-width: 900px) { .c-layout { grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 28px; } }
 .c-card { background: #fff; border: 1px solid #e8e6f0; border-radius: var(--radius, 16px); padding: 16px; box-shadow: 0 1px 3px rgba(13,43,128,.06); }
 .c-card + .c-card { margin-top: 16px; }
@@ -15,7 +16,7 @@
 
 /* cart lines */
 .c-lines { list-style: none; margin: 0; padding: 0; }
-.c-line { display: grid; grid-template-columns: 72px 1fr; gap: 12px; padding: 14px 0; border-bottom: 1px solid #eee; }
+.c-line { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-bottom: 1px solid #eee; }
 .c-line:last-child { border-bottom: 0; }
 .c-thumb { width: 72px; height: 72px; border-radius: 12px; object-fit: cover; background: var(--blue, #1F2F9E); }
 .c-thumb.ph { object-fit: contain; padding: 10px; }
@@ -29,7 +30,7 @@
 .c-stepper button { width: 36px; height: 36px; border: 0; background: #fff; font-size: 1.1rem; cursor: pointer; color: var(--blue-deep, #0D2B80); }
 .c-stepper button:hover { background: #f1f0fa; }
 .c-stepper output { min-width: 32px; text-align: center; font-weight: 600; }
-.c-link-btn { background: none; border: 0; color: var(--red, #D21034); cursor: pointer; font: inherit; font-size: .85rem; padding: 4px 0; text-decoration: underline; }
+.c-link-btn { align-self: flex-start; background: none; border: 0; color: var(--red, #D21034); cursor: pointer; font: inherit; font-size: .85rem; padding: 4px 0; text-decoration: underline; }
 .c-stock-warn { color: var(--red, #D21034); font-size: .85rem; font-weight: 500; }
 
 /* totals */

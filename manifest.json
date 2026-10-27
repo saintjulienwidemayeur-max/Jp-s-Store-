@@ -1,0 +1,15 @@
+{
+  "name": "JP's Logistics & More",
+  "short_name": "JP's Store",
+  "description": "Haitian fan gear and collectibles. Shipping included.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FCFBFE",
+  "theme_color": "#1F2F9E",
+  "lang": "en",
+  "icons": [
+    { "src": "assets/brand/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
