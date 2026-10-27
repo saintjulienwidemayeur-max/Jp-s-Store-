@@ -379,6 +379,7 @@ function mount() {
   if (main) main.setAttribute('tabindex', '-1');
   const f = document.createElement('div'); f.innerHTML = footerHTML();
   document.body.appendChild(f.firstElementChild);
+  import('./payment-ui.js').then((m) => m.mountPaymentChrome()).catch(() => {});
   setupDrawer(); setupSearch(); setupNewsletter();
   syncPreferredLang();
   onCartChange(syncBadges);
