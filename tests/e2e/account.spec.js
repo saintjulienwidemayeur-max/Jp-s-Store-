@@ -82,7 +82,9 @@ module.exports = [
     await h.go(page, 'index.html');
     h.assert.match(await page.locator('main h2.section-title').first().innerText(), /Browse by Categories/);
     for (const [lang, re, htmlLang] of [['fr', /Parcourir par catégories|catégories/i, 'fr'], ['ht', /kategori/i, 'ht'], ['en', /Browse by Categories/, 'en']]) {
-      await Promise.all([page.waitForLoadState('load'), page.locator(`footer [data-lang=${lang}]`).click()]);
+      await h.go(page, 'settings.html');
+      await Promise.all([page.waitForLoadState('load'), page.locator(`input[name=lang][value=${lang}]`).check()]);
+      await h.go(page, 'index.html');
       await page.waitForSelector('#popular .pcard'); await page.waitForLoadState('networkidle');
       h.assert.match(await page.locator('main h2.section-title').first().innerText(), re);
       h.assert.strictEqual(await page.evaluate(() => document.documentElement.lang), htmlLang);
