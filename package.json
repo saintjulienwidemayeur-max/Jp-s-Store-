@@ -1,0 +1,12 @@
+{
+  "name": "jps-store",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JP's Logistics & More - Haitian fan-zone store (static, no build step)",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/unit/",
+    "test:e2e": "node --test tests/e2e"
+  },
+  "engines": { "node": ">=18" }
+}

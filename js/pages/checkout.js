@@ -168,6 +168,7 @@ root.addEventListener('submit', async (e) => {
       payment_method: values.payment,
     });
     clearCart(); store.set('');
+    try { sessionStorage.setItem('jps_fresh_' + order.order_number, '1'); } catch {}
     location.href = `order.html?n=${encodeURIComponent(order.order_number)}&e=${encodeURIComponent(values.email.trim())}`;
     return;
   } catch (err) {
