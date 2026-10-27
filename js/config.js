@@ -32,3 +32,12 @@ root.JPS_CONFIG = root.JPS_CONFIG || {
   MEDIA_LIMITS: { image: 8 * 1024 * 1024, video: 50 * 1024 * 1024, model3d: 30 * 1024 * 1024 },
   FUNCTION_3D: 'generate-3d'             // Supabase Edge Function name
 };
+
+// Deployment overrides (public values only): env.js is replaced at deploy time with the project URL + anon key.
+// Kept out of this file on purpose so keys never live in the code. Missing or empty env.js keeps local mode.
+try {
+  const env = (await import('../env.js')).default || {};
+  for (const k of ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'ADMIN_EMAILS', 'CONTACT']) {
+    if (env[k] !== undefined && env[k] !== '') root.JPS_CONFIG[k] = env[k];
+  }
+} catch { /* no env.js: local mode */ }
