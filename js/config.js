@@ -30,14 +30,26 @@ root.JPS_CONFIG = root.JPS_CONFIG || {
   AUTO_3D: true,                         // uploadMedia(image) auto-requests a 3D job unless false
   MEDIA_BUCKET: 'product-media',
   MEDIA_LIMITS: { image: 8 * 1024 * 1024, video: 50 * 1024 * 1024, model3d: 30 * 1024 * 1024 },
-  FUNCTION_3D: 'generate-3d'             // Supabase Edge Function name
+  FUNCTION_3D: 'generate-3d',            // Supabase Edge Function name
+  // Home hero carousel (max 3). Text comes from i18n keys home.slide.<id>.{title,text,cta}; `category` slides are only shown when that
+  // category exists and is active. `image` is optional (null = branded gradient). Set enabled:false to hide a slide.
+  HOME_SLIDES: [
+    { id: 'brand', type: 'brand', href: 'shop.html', image: null, enabled: true },
+    { id: 'offer', type: 'offer', code: 'HT26', href: 'shop.html', image: null, enabled: true },
+    { id: 'fan-zone', type: 'collection', category: 'fan-zone', href: 'shop.html?category=fan-zone', image: 'assets/img/headband.jpg', enabled: true }
+  ]
 };
 
 // Deployment overrides (public values only): env.js is replaced at deploy time with the project URL + anon key.
 // Kept out of this file on purpose so keys never live in the code. Missing or empty env.js keeps local mode.
+// The import can never block the module graph: if env.js is missing, fails to evaluate or hangs, we fall back to
+// local config after 3s (the page keeps loading; a late env.js is ignored).
 try {
-  const env = (await import('../env.js')).default || {};
-  for (const k of ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'ADMIN_EMAILS', 'CONTACT']) {
+  const env = await Promise.race([
+    import('../env.js').then((m) => m.default || {}),
+    new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
+  ]);
+  if (env) for (const k of ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'ADMIN_EMAILS', 'CONTACT']) {
     if (env[k] !== undefined && env[k] !== '') root.JPS_CONFIG[k] = env[k];
   }
 } catch { /* no env.js: local mode */ }

@@ -3,11 +3,36 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<style id="boot-css">
+#boot{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:#FCFBFE;color:#111;font-family:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;text-align:center;opacity:1;transition:opacity .2s ease}
+#boot.boot-out{opacity:0;pointer-events:none}
+#boot .boot-in{display:flex;flex-direction:column;align-items:center;gap:18px;max-width:420px;width:100%;opacity:0;animation:boot-show .25s ease 150ms forwards}
+#boot.boot-failed .boot-in{animation-delay:0s}
+#boot .boot-ring{position:relative;width:208px;height:208px;max-width:70vw;max-height:70vw;display:grid;place-items:center}
+#boot .boot-ring::before{content:"";position:absolute;inset:0;border-radius:50%;border:5px solid #1F2F9E;border-top-color:#D21034;border-right-color:#1F2F9E;animation:boot-spin 1.1s linear infinite}
+#boot .boot-ring img{width:160px;max-width:52vw;height:auto;display:block}
+#boot.boot-failed .boot-ring::before{animation:none;border-color:#1F2F9E;border-top-color:#D21034}
+#boot .boot-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#boot .boot-fail{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
+#boot .boot-msg{margin:0;font-size:1.15rem;font-weight:600;color:#0D2B80}
+#boot .boot-hint{margin:0;font-size:.9rem;color:#5d6275}
+#boot .boot-retry{min-height:48px;padding:0 28px;border-radius:999px;border:0;background:#1F2F9E;color:#fff;font-weight:600;font-size:15px;font-family:inherit;cursor:pointer}
+#boot .boot-retry:focus-visible,#boot summary:focus-visible{outline:3px solid #F26B3A;outline-offset:2px}
+#boot .boot-details{width:100%;text-align:left;font-size:.85rem}
+#boot .boot-details summary{cursor:pointer;color:#1F2F9E;font-weight:600;text-align:center}
+#boot .boot-details pre{margin:8px 0 0;padding:12px;max-height:40vh;overflow:auto;white-space:pre-wrap;word-break:break-word;background:#f0f1fb;border-radius:10px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#111}
+@keyframes boot-show{to{opacity:1}}
+@keyframes boot-spin{to{transform:rotate(360deg)}}
+@keyframes boot-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){#boot{transition:none}#boot .boot-ring::before{animation:boot-pulse 1.8s ease-in-out infinite}#boot .boot-in{animation-duration:.01s}}
+</style>
+<noscript><style>#boot{display:none!important}</style></noscript>
+<script src="js/boot.js"></script>
 <title>Settings | JP's Logistics & More</title>
-<meta name="description" content="JP's Logistics & More: Haitian fan gear and collectibles. Shipping included.">
+<meta name="description" content="JP's Logistics & More: quality products, fast delivery, secure payment and professional service. Shipping included.">
 <meta name="theme-color" content="#1F2F9E">
 <meta property="og:title" content="Settings | JP's Logistics & More">
-<meta property="og:description" content="JP's Logistics & More: Haitian fan gear and collectibles. Shipping included.">
+<meta property="og:description" content="JP's Logistics & More: quality products, fast delivery, secure payment and professional service. Shipping included.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="assets/brand/icon-512.png">
 <link rel="manifest" href="manifest.json">
@@ -20,8 +45,9 @@
 <link rel="stylesheet" href="css/media.css">
 </head>
 <body>
-<main id="main"><div class="container"><p class="state">Loading…</p></div></main>
+<div id="boot" role="status" aria-live="polite"><div class="boot-in"><div class="boot-ring"><img src="assets/brand/logo.png" alt="" width="160" height="78" decoding="async"></div><span class="boot-sr">Loading</span></div></div>
+<main id="main"></main>
 <noscript><p style="padding:24px;text-align:center">Please enable JavaScript to use the store.</p></noscript>
-<script type="module" src="js/pages/settings.js"></script>
+<script type="module" src="js/pages/settings.js" onerror="window.__bootFail&&__bootFail(this)"></script>
 </body>
 </html>

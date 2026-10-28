@@ -1,7 +1,7 @@
 {
   "name": "JP's Logistics & More",
   "short_name": "JP's Store",
-  "description": "Haitian fan gear and collectibles. Shipping included.",
+  "description": "Quality products, fast delivery, secure payment. Shipping included.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

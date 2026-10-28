@@ -4,3 +4,4 @@ import './api.test.js';
 import './media.test.js';
 import './server.test.js';
 import './payments.test.js';
+import './categories.test.js';

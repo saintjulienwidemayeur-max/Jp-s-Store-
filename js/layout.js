@@ -1,6 +1,8 @@
 // Shared chrome: promo strip, header, drawer, search overlay, footer, toasts, product cards.
 import { t, getLang, setLang, getLangs, LANG_NAMES } from './i18n.js';
 import './i18n.media.js';
+import './i18n.store.js';
+import { getCategories, buildTree } from './catalog.js';
 import { formatMoney, COUPON_DEFAULT } from './pricing.js';
 import * as api from './api.js';
 import { addItem, cartCount, onCartChange } from './cart.js';
@@ -229,7 +231,7 @@ function footerHTML() {
       <a class="foot-ig" href="${IG_URL}" target="_blank" rel="noopener">${icon('insta')} @jpslogistics</a>
     </div>
     <div><h2 class="foot-h">${escapeHtml(t('footer.shop'))}</h2><ul class="foot-list">
-      <li><a href="shop.html">${escapeHtml(t('nav.all_products'))}</a></li><li><a href="wishlist.html">${escapeHtml(t('nav.wishlist'))}</a></li><li><a href="cart.html">${escapeHtml(t('nav.cart'))}</a></li><li><a href="account.html">${escapeHtml(t('nav.account'))}</a></li></ul></div>
+      <li><a href="shop.html">${escapeHtml(t('nav.all_products'))}</a></li><span id="foot-cats" hidden></span><li><a href="wishlist.html">${escapeHtml(t('nav.wishlist'))}</a></li><li><a href="cart.html">${escapeHtml(t('nav.cart'))}</a></li><li><a href="account.html">${escapeHtml(t('nav.account'))}</a></li></ul></div>
     <div><h2 class="foot-h">${escapeHtml(t('footer.help'))}</h2><ul class="foot-list">${pLinks.map(p => `<li><a href="info.html?p=${p}">${escapeHtml(t('nav.' + p))}</a></li>`).join('')}</ul></div>
     <div class="foot-news">
       <h2 class="foot-h">${escapeHtml(t('footer.newsletter'))}</h2>
@@ -282,8 +284,13 @@ function setupDrawer() {
   drawer.addEventListener('keydown', e => { if (e.key === 'Escape') close(); trap(drawer, e); });
   drawer.inert = true;
   new MutationObserver(() => { drawer.inert = !drawer.classList.contains('open'); }).observe(drawer, { attributes: true, attributeFilter: ['class'] });
-  api.listCategories().then(cats => {
-    document.getElementById('drawer-cats').innerHTML = cats.map(c => `<a href="shop.html?category=${encodeURIComponent(c.slug)}">${escapeHtml(c.name)}</a>`).join('');
+  getCategories().then(cats => {
+    const link = (c, depth) => `<a href="shop.html?category=${encodeURIComponent(c.slug)}"${depth ? ' class="sub"' : ''}>${escapeHtml(c.name)}</a>`;
+    const walk = (nodes, depth) => nodes.map(n => link(n, depth) + walk(n.children, depth + 1)).join('');
+    const tree = buildTree(cats);
+    document.getElementById('drawer-cats').innerHTML = walk(tree, 0);
+    const fc = document.getElementById('foot-cats');
+    if (fc) fc.innerHTML = tree.slice(0, 6).map(c => `<li><a href="shop.html?category=${encodeURIComponent(c.slug)}">${escapeHtml(c.name)}</a></li>`).join('');
   }).catch(() => {});
 }
 
@@ -395,3 +402,12 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 export { api };
 export const ready = () => (wlReady ? Promise.resolve() : loadWishlistOnce());
 function loadWishlistOnce() { return new Promise(r => { const i = setInterval(() => { if (wlReady) { clearInterval(i); r(); } }, 30); setTimeout(() => { clearInterval(i); r(); }, 1500); }); }
+
+// Every page module calls pageReady() once its main content (or its error state) is rendered. It removes the
+// branded #boot overlay; js/boot.js owns the fade-out and the failure watchdog.
+export function pageReady() {
+  try {
+    if (typeof window.__bootReady === 'function') window.__bootReady();
+    else { const b = document.getElementById('boot'); if (b) b.remove(); }
+  } catch { /* never block a page on the loader */ }
+}

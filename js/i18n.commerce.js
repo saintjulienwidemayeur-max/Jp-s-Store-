@@ -1,7 +1,7 @@
 import { addMessages } from './i18n.js';
 
 const en = {
-  'cart.title': 'Your cart', 'cart.items': '{n} item(s)', 'cart.empty': 'Your cart is empty', 'cart.empty_hint': 'Discover our Haitian fan-zone gear and fill it up!',
+  'cart.title': 'Your cart', 'cart.items': '{n} item(s)', 'cart.empty': 'Your cart is empty', 'cart.empty_hint': 'Discover our products and fill it up!',
   'cart.continue': 'Continue shopping', 'cart.checkout': 'Proceed to checkout', 'cart.summary': 'Order summary', 'cart.quantity': 'Quantity',
   'cart.increase': 'Increase quantity', 'cart.decrease': 'Decrease quantity', 'cart.remove': 'Remove', 'cart.removed': 'Item removed',
   'cart.subtotal': 'Subtotal', 'cart.discount': 'Discount', 'cart.shipping': 'Shipping', 'cart.shipping_included': 'Shipping included', 'cart.total': 'Total',
@@ -46,7 +46,7 @@ const en = {
 };
 
 const fr = {
-  'cart.title': 'Votre panier', 'cart.items': '{n} article(s)', 'cart.empty': 'Votre panier est vide', 'cart.empty_hint': 'Découvrez nos articles de supporter haïtien !',
+  'cart.title': 'Votre panier', 'cart.items': '{n} article(s)', 'cart.empty': 'Votre panier est vide', 'cart.empty_hint': 'Découvrez nos produits et remplissez-le !',
   'cart.continue': 'Continuer mes achats', 'cart.checkout': 'Passer la commande', 'cart.summary': 'Résumé de la commande', 'cart.quantity': 'Quantité',
   'cart.increase': 'Augmenter la quantité', 'cart.decrease': 'Diminuer la quantité', 'cart.remove': 'Retirer', 'cart.removed': 'Article retiré',
   'cart.subtotal': 'Sous-total', 'cart.discount': 'Réduction', 'cart.shipping': 'Livraison', 'cart.shipping_included': 'Livraison incluse', 'cart.total': 'Total',
@@ -91,7 +91,7 @@ const fr = {
 };
 
 const ht = {
-  'cart.title': 'Panye ou', 'cart.items': '{n} atik', 'cart.empty': 'Panye ou vid', 'cart.empty_hint': 'Dekouvri atik sipòtè ayisyen nou yo epi ranpli panye ou!',
+  'cart.title': 'Panye ou', 'cart.items': '{n} atik', 'cart.empty': 'Panye ou vid', 'cart.empty_hint': 'Dekouvri pwodwi nou yo epi ranpli panye ou!',
   'cart.continue': 'Kontinye achte', 'cart.checkout': 'Pase kòmand', 'cart.summary': 'Rezime kòmand', 'cart.quantity': 'Kantite',
   'cart.increase': 'Ogmante kantite', 'cart.decrease': 'Bese kantite', 'cart.remove': 'Retire', 'cart.removed': 'Atik la retire',
   'cart.subtotal': 'Sou-total', 'cart.discount': 'Rabè', 'cart.shipping': 'Livrezon', 'cart.shipping_included': 'Livrezon enkli', 'cart.total': 'Total',

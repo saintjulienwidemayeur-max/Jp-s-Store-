@@ -2,7 +2,7 @@
 // Mode is auto-selected from window.JPS_CONFIG: Supabase when URL + anon key exist, else local (localStorage).
 import './config.js';
 import { computeTotals, roundMoney, COUPON_DEFAULT } from './pricing.js';
-import { SEED_CATEGORIES, SEED_PRODUCTS, SEED_COUPONS, mediaFromImages } from './seed.js';
+import { SEED_CATEGORIES, SEED_PRODUCTS, SEED_COUPONS, SAMPLE_CATEGORIES, SAMPLE_PRODUCTS, mediaFromImages } from './seed.js';
 
 const CFG = () => globalThis.JPS_CONFIG || {};
 const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
@@ -103,8 +103,35 @@ async function hashPw(password, salt) {
 }
 const newSalt = () => hex(globalThis.crypto.getRandomValues(new Uint8Array(16)));
 
+const SEEDED_V2 = 'jps_seeded_v2'; // categories as managed entities + local sample catalog
 async function ensureSeeded() {
-  if (store.get(K.seeded)) return;
+  if (!store.get(K.seeded)) await seedV1();
+  if (!store.get(SEEDED_V2)) seedV2();
+}
+// Idempotent upgrade (also upgrades browsers seeded before categories were managed): fills new fields, adds sample data.
+function seedV2() {
+  const cats = store.get(K.categories, []).map(normCat);
+  for (const sc of [...SEED_CATEGORIES, ...SAMPLE_CATEGORIES]) {
+    const have = cats.find((c) => c.slug === sc.slug);
+    if (!have) cats.push(normCat(sc));
+    else if (!have.description && sc.description) have.description = sc.description;
+  }
+  store.set(K.categories, cats);
+  const byId = new Map(SEED_PRODUCTS.map((p) => [p.id, p]));
+  const products = store.get(K.products, []);
+  for (const p of products) {
+    const sp = byId.get(p.id);
+    if (p.is_featured === undefined) p.is_featured = sp ? !!sp.is_featured : false;
+    if (sp && sp.is_sample && p.is_sample === undefined) p.is_sample = true;
+    if (!p.category_id) p.category_id = (cats.find((c) => c.slug === p.category_slug) || {}).id;
+  }
+  for (const sp of SAMPLE_PRODUCTS) {
+    if (!products.some((p) => p.slug === sp.slug)) products.push({ ...clone(sp), category_id: (cats.find((c) => c.slug === sp.category_slug) || {}).id });
+  }
+  store.set(K.products, products);
+  store.set(SEEDED_V2, true);
+}
+async function seedV1() {
   const cat = new Map(SEED_CATEGORIES.map((c) => [c.slug, c]));
   store.set(K.categories, clone(SEED_CATEGORIES));
   store.set(K.products, clone(SEED_PRODUCTS.map((p) => ({ ...p, category_id: cat.get(p.category_slug)?.id }))));
@@ -133,19 +160,6 @@ function requireAdminLocal() {
 const wishKey = () => { const u = currentLocalUser(); return u ? `jps_wishlist_${u.id}` : K.wishGuest; };
 
 const local = {
-  async listCategories() { await ensureSeeded(); return clone(store.get(K.categories, [])); },
-
-  async listProducts({ category, q, sort = 'popular', limit, includeInactive = false } = {}) {
-    await ensureSeeded();
-    let list = loadProducts();
-    if (!includeInactive) list = list.filter((p) => p.is_active);
-    if (category) list = list.filter((p) => p.category_slug === category);
-    if (q && String(q).trim()) list = list.filter((p) => matchesQuery(p, q));
-    list = sortProducts(list, sort);
-    if (limit > 0) list = list.slice(0, limit);
-    return Promise.all(list.map((p) => hydrate(p)));
-  },
-
   async getProduct(slugOrId) {
     await ensureSeeded();
     const p = loadProducts().find((x) => x.slug === slugOrId || x.id === slugOrId);
@@ -339,12 +353,14 @@ const local = {
     if (existing) {
       const { image, images, ...rest } = d;
       Object.assign(existing, rest);
+      existing.category_id = (cats.find((c) => c.slug === d.category_slug) || {}).id;
       if (!(Array.isArray(existing.media) && existing.media.length)) existing.media = mediaFromImages(existing.id, existing.name, images);
       ensureMedia(existing); store.set(K.products, products);
       return hydrate(existing);
     }
     const id = uuid();
-    const p = { rating: 5, review_count: 0, created_at: new Date().toISOString(), ...d, id, media: mediaFromImages(id, d.name, d.images) };
+    const p = { rating: 5, review_count: 0, created_at: new Date().toISOString(), ...d, id, media: mediaFromImages(id, d.name, d.images),
+      category_id: (cats.find((c) => c.slug === d.category_slug) || {}).id };
     ensureMedia(p); products.push(p); store.set(K.products, products);
     return hydrate(p);
   },
@@ -414,7 +430,7 @@ function normalizeProduct(p) {
     ...(p.id ? { id: p.id } : {}), slug: slugify(p.slug || name) || uuid().slice(0, 8), name, description: str(p.description, 5000),
     price: roundMoney(price), compare_at_price: cmp === null ? null : roundMoney(cmp), category_slug: str(p.category_slug, 80) || 'fan-zone',
     image, images: images.length ? images : (image ? [image] : []), stock,
-    is_active: p.is_active !== false, is_popular: !!p.is_popular, tags: Array.isArray(p.tags) ? p.tags.map(String) : []
+    is_active: p.is_active !== false, is_popular: !!p.is_popular, is_featured: !!p.is_featured, tags: Array.isArray(p.tags) ? p.tags.map(String) : []
   };
 }
 function normalizeCoupon(c) {
@@ -455,7 +471,7 @@ function mapProduct(r) {
     category_slug: r.categories ? r.categories.slug : null, image: r.image || null,
     images: (r.images && r.images.length) ? r.images : (r.image ? [r.image] : []),
     rating: Number(r.rating), review_count: r.review_count, stock: r.stock, is_active: r.is_active,
-    is_popular: r.is_popular, tags: r.tags || [], created_at: r.created_at,
+    is_popular: r.is_popular, is_featured: !!r.is_featured, tags: r.tags || [], created_at: r.created_at,
     media: Array.isArray(r.media) ? r.media : []
   };
   if (!p.media.length) p.media = mediaFromImages(p.id, p.name, p.images);
@@ -487,26 +503,6 @@ async function supaGuestWishMerge(c, userId) {
 }
 
 const supa = {
-  async listCategories() {
-    const c = await sb();
-    return unwrap(await c.from('categories').select('id,slug,name,image').order('sort_order').order('name'));
-  },
-  async listProducts({ category, q, sort = 'popular', limit, includeInactive = false } = {}) {
-    const c = await sb();
-    let query = c.from('products').select(category ? '*, categories!inner(slug)' : PRODUCT_SELECT);
-    if (!includeInactive) query = query.eq('is_active', true);
-    if (category) query = query.eq('categories.slug', category);
-    if (q && String(q).trim()) {
-      const safe = String(q).replace(/[,()%*\\]/g, ' ').trim();
-      if (safe) query = query.or(`name.ilike.%${safe}%,description.ilike.%${safe}%,tags.cs.{${safe.toLowerCase().replace(/\s+/g, '')}}`);
-    }
-    if (sort === 'price_asc') query = query.order('price', { ascending: true });
-    else if (sort === 'price_desc') query = query.order('price', { ascending: false });
-    else if (sort === 'new') query = query.order('created_at', { ascending: false });
-    else query = query.order('is_popular', { ascending: false }).order('review_count', { ascending: false }).order('created_at', { ascending: true });
-    if (limit > 0) query = query.limit(limit);
-    return unwrap(await query).map(mapProduct);
-  },
   async getProduct(slugOrId) {
     const c = await sb();
     const col = UUID_RE.test(slugOrId) ? 'id' : 'slug';
@@ -634,7 +630,7 @@ const supa = {
     const cat = unwrap(await c.from('categories').select('id').eq('slug', d.category_slug).maybeSingle());
     if (!cat) throw err('validation', 'Unknown category');
     const row = { slug: d.slug, name: d.name, description: d.description, price: d.price, compare_at_price: d.compare_at_price,
-      category_id: cat.id, image: d.image, images: d.images, stock: d.stock, is_active: d.is_active, is_popular: d.is_popular, tags: d.tags };
+      category_id: cat.id, image: d.image, images: d.images, stock: d.stock, is_active: d.is_active, is_popular: d.is_popular, is_featured: d.is_featured, tags: d.tags };
     const q = d.id ? c.from('products').update(row).eq('id', d.id) : c.from('products').insert(row);
     return mapProduct(unwrap(await q.select(PRODUCT_SELECT).single()));
   },
@@ -1063,8 +1059,302 @@ Object.assign(supa, {
 });
 
 /* ====================================================================== */
+/* CATEGORIES (managed collections) + extended product queries             */
+/* ====================================================================== */
+// Category = {id, slug, name, description, image|null, parent_id|null, sort, is_featured, is_active}
+const ensureArr = (v) => (Array.isArray(v) ? v : (v == null || v === '' ? [] : [v]));
+function normCat(c) {
+  return { ...c, description: c.description || '', image: c.image || null, parent_id: c.parent_id || null,
+    sort: Number.isFinite(Number(c.sort)) ? Number(c.sort) : (Number.isFinite(Number(c.sort_order)) ? Number(c.sort_order) : 0),
+    is_featured: !!c.is_featured, is_active: c.is_active !== false };
+}
+const catSort = (a, b) => (a.sort - b.sort) || String(a.name).localeCompare(String(b.name));
+const stripCat = (c) => { const { sort_order, ...rest } = c; return rest; };
+/** slugs -> those slugs plus every descendant slug (selecting a parent also lists its children's products). */
+function expandSlugs(cats, slugs) {
+  const out = new Set();
+  const walk = (c) => { if (out.has(c.slug)) return; out.add(c.slug); cats.filter((x) => x.parent_id === c.id).forEach(walk); };
+  for (const sl of slugs) { const c = cats.find((x) => x.slug === sl); if (c) walk(c); else out.add(sl); }
+  return out;
+}
+function normalizeCategory(c) {
+  c = c || {};
+  const name = str(c.name, 120);
+  if (!name) throw err('validation', 'Category name is required');
+  const slug = slugify(c.slug || name);
+  if (!slug) throw err('validation', 'Invalid category slug');
+  let image = c.image == null || c.image === '' ? null : String(c.image).slice(0, 2000);
+  const sortN = c.sort === undefined || c.sort === null || c.sort === '' ? undefined : Number(c.sort);
+  if (sortN !== undefined && !Number.isFinite(sortN)) throw err('validation', 'Invalid sort');
+  return { ...(c.id ? { id: String(c.id) } : {}), slug, name, description: str(c.description, 2000), image,
+    parent_id: c.parent_id ? String(c.parent_id) : null, ...(sortN !== undefined ? { sort: Math.floor(sortN) } : {}),
+    is_featured: !!c.is_featured, is_active: c.is_active !== false };
+}
+/** Throws when parent is missing, is the category itself, or would create a cycle. `all` = every category. */
+function checkParent(all, id, parentId) {
+  if (!parentId) return;
+  if (id && parentId === id) throw err('validation', 'A category cannot be its own parent');
+  if (!all.some((x) => x.id === parentId)) throw err('validation', 'Unknown parent category');
+  for (let cur = all.find((x) => x.id === parentId), n = 0; cur && n < 100; cur = all.find((x) => x.id === cur.parent_id), n++)
+    if (id && cur.id === id) throw err('validation', 'Category parent would create a loop');
+}
+function productFilters(o = {}) {
+  const num = (v) => (v === undefined || v === null || v === '' ? null : (Number.isFinite(Number(v)) ? Number(v) : null));
+  return {
+    slugs: [...ensureArr(o.categories), ...ensureArr(o.category)].map(String).filter(Boolean),
+    q: o.q && String(o.q).trim() ? String(o.q) : '', min: num(o.minPrice), max: num(o.maxPrice),
+    inStock: !!o.inStock, featured: !!o.featured, includeInactive: !!o.includeInactive,
+    sort: o.newest ? 'new' : (o.sort || 'popular')
+  };
+}
+const pageOf = (o = {}) => {
+  const pageSize = Math.min(100, Math.max(1, Math.floor(Number(o.pageSize)) || 12));
+  return { page: Math.max(1, Math.floor(Number(o.page)) || 1), pageSize };
+};
+function localProductList(o) {
+  const f = productFilters(o);
+  let list = loadProducts();
+  if (!f.includeInactive) list = list.filter((p) => p.is_active);
+  if (f.slugs.length) { const set = expandSlugs(loadCategories(), f.slugs); list = list.filter((p) => set.has(p.category_slug)); }
+  if (f.q) list = list.filter((p) => matchesQuery(p, f.q));
+  if (f.min !== null) list = list.filter((p) => p.price >= f.min);
+  if (f.max !== null) list = list.filter((p) => p.price <= f.max);
+  if (f.inStock) list = list.filter((p) => p.stock > 0);
+  if (f.featured) list = list.filter((p) => p.is_featured);
+  return sortProducts(list, f.sort);
+}
+function loadCategories() { return store.get(K.categories, []).map(normCat); }
+async function hydrateCategory(c) { const o = stripCat(clone(c)); o.image = await resolveRef(o.image); return o; }
+const reverseObjectUrl = (u) => { for (const [id, url] of objectUrls) if (url === u) return `${IDB_PREFIX}${id}`; return u; };
+
+Object.assign(local, {
+  async listCategories({ includeInactive = false, featured } = {}) {
+    await ensureSeeded();
+    let list = loadCategories();
+    if (!includeInactive) list = list.filter((c) => c.is_active);
+    if (featured !== undefined && featured !== null) list = list.filter((c) => c.is_featured === !!featured);
+    return Promise.all(list.sort(catSort).map(hydrateCategory));
+  },
+  async getCategory(slugOrId) {
+    await ensureSeeded();
+    const c = loadCategories().find((x) => x.slug === slugOrId || x.id === slugOrId);
+    if (!c) return null;
+    if (!c.is_active) { const u = currentLocalUser(); if (!(u && isAdminEmail(u.email))) return null; }
+    return hydrateCategory(c);
+  },
+  async listProducts(o = {}) {
+    await ensureSeeded();
+    let list = localProductList(o);
+    if (o.page) { const { page, pageSize } = pageOf(o); list = list.slice((page - 1) * pageSize, page * pageSize); }
+    else if (o.limit > 0) list = list.slice(0, o.limit);
+    return Promise.all(list.map((p) => hydrate(p)));
+  },
+  async listProductsPaged(o = {}) {
+    await ensureSeeded();
+    const list = localProductList(o); const { page, pageSize } = pageOf(o);
+    const items = await Promise.all(list.slice((page - 1) * pageSize, page * pageSize).map((p) => hydrate(p)));
+    return { items, total: list.length, page, pageSize };
+  },
+  async adminListCategories() {
+    await ensureSeeded(); requireAdminLocal();
+    const products = store.get(K.products, []);
+    return Promise.all(loadCategories().sort(catSort).map(async (c) => ({ ...(await hydrateCategory(c)),
+      product_count: products.filter((p) => p.category_slug === c.slug).length })));
+  },
+  async adminUpsertCategory(input) {
+    await ensureSeeded(); requireAdminLocal();
+    const d = normalizeCategory(input);
+    if (d.image) d.image = reverseObjectUrl(d.image);
+    const cats = loadCategories();
+    const existing = d.id ? cats.find((x) => x.id === d.id) : null;
+    if (d.id && !existing) throw err('not_found', 'Category not found');
+    if (cats.some((x) => x.slug === d.slug && x.id !== (existing && existing.id))) throw err('validation', 'Slug already used');
+    checkParent(cats, existing && existing.id, d.parent_id);
+    let out;
+    if (existing) {
+      const oldSlug = existing.slug;
+      Object.assign(existing, d); out = existing;
+      if (oldSlug !== d.slug) {
+        const products = store.get(K.products, []);
+        products.forEach((p) => { if (p.category_slug === oldSlug) p.category_slug = d.slug; });
+        store.set(K.products, products);
+      }
+    } else {
+      out = normCat({ ...d, id: uuid(), sort: d.sort !== undefined ? d.sort : (cats.reduce((m, x) => Math.max(m, x.sort), -1) + 1) });
+      cats.push(out);
+    }
+    store.set(K.categories, cats);
+    return hydrateCategory(out);
+  },
+  async adminDeleteCategory(id, { reassignTo } = {}) {
+    await ensureSeeded(); requireAdminLocal();
+    const cats = loadCategories();
+    const c = cats.find((x) => x.id === id);
+    if (!c) throw err('not_found', 'Category not found');
+    const products = store.get(K.products, []);
+    const used = products.filter((p) => p.category_slug === c.slug);
+    if (used.length) {
+      const target = reassignTo ? cats.find((x) => x.id === reassignTo || x.slug === reassignTo) : null;
+      if (!target || target.id === c.id) {
+        const e = err('validation', `Category still has ${used.length} product(s); choose a category to reassign them to`);
+        e.reason = 'in_use'; e.product_count = used.length; throw e;
+      }
+      used.forEach((p) => { p.category_slug = target.slug; p.category_id = target.id; });
+      store.set(K.products, products);
+    }
+    cats.filter((x) => x.parent_id === c.id).forEach((x) => { x.parent_id = null; });
+    store.set(K.categories, cats.filter((x) => x.id !== id));
+    if (String(c.image || '').startsWith(IDB_PREFIX)) await blobDel(c.image.slice(IDB_PREFIX.length));
+    return { deleted: true, reassigned: used.length };
+  },
+  async adminReorderCategories(ids) {
+    await ensureSeeded(); requireAdminLocal();
+    if (!Array.isArray(ids)) throw err('validation', 'ids must be an array');
+    const cats = loadCategories();
+    const order = [...new Set(ids)].filter((id) => cats.some((c) => c.id === id));
+    const rest = cats.filter((c) => !order.includes(c.id)).sort(catSort).map((c) => c.id);
+    [...order, ...rest].forEach((id, i) => { cats.find((c) => c.id === id).sort = i; });
+    store.set(K.categories, cats);
+    return Promise.all(cats.sort(catSort).map(hydrateCategory));
+  },
+  // Returns {url, value}: show `url`; pass `value` as category.image to adminUpsertCategory (local: stable idb: ref).
+  async uploadCategoryImage(file, { onProgress } = {}) {
+    await ensureSeeded(); requireAdminLocal();
+    const info = await validateMediaFile(file);
+    if (info.type !== 'image') throw err('validation', 'Category image must be a JPEG, PNG or WebP');
+    if (typeof onProgress === 'function') onProgress(0);
+    const id = uuid(); await blobPut(id, file);
+    if (typeof onProgress === 'function') onProgress(1);
+    return { url: await blobUrl(id), value: `${IDB_PREFIX}${id}` };
+  }
+});
+
+async function supaCategoryIds(c, slugs) {
+  const all = unwrap(await c.from('categories').select('id,slug,parent_id'));
+  const set = expandSlugs(all, slugs);
+  return all.filter((x) => set.has(x.slug)).map((x) => x.id);
+}
+async function supaProductQuery(c, o, count) {
+  const f = productFilters(o);
+  let query = c.from('products').select(PRODUCT_SELECT, count ? { count: 'exact' } : undefined);
+  if (!f.includeInactive) query = query.eq('is_active', true);
+  if (f.slugs.length) {
+    const ids = await supaCategoryIds(c, f.slugs);
+    if (!ids.length) return null; // unknown / hidden category: nothing matches
+    query = query.in('category_id', ids);
+  }
+  if (f.q) {
+    const safe = f.q.replace(/[,()%*\\]/g, ' ').trim();
+    if (safe) query = query.or(`name.ilike.%${safe}%,description.ilike.%${safe}%,tags.cs.{${safe.toLowerCase().replace(/\s+/g, '')}}`);
+  }
+  if (f.min !== null) query = query.gte('price', f.min);
+  if (f.max !== null) query = query.lte('price', f.max);
+  if (f.inStock) query = query.gt('stock', 0);
+  if (f.featured) query = query.eq('is_featured', true);
+  if (f.sort === 'price_asc') query = query.order('price', { ascending: true });
+  else if (f.sort === 'price_desc') query = query.order('price', { ascending: false });
+  else if (f.sort === 'new') query = query.order('created_at', { ascending: false });
+  else query = query.order('is_popular', { ascending: false }).order('review_count', { ascending: false }).order('created_at', { ascending: true });
+  return query.order('id'); // stable tie-break so pages never overlap
+}
+const mapCategory = (r) => normCat({ id: r.id, slug: r.slug, name: r.name, description: r.description, image: r.image,
+  parent_id: r.parent_id, sort: r.sort_order, is_featured: r.is_featured, is_active: r.is_active });
+
+Object.assign(supa, {
+  async listCategories({ includeInactive = false, featured } = {}) {
+    const c = await sb();
+    let q = c.from('categories').select('*').order('sort_order').order('name');
+    if (!includeInactive) q = q.eq('is_active', true);
+    if (featured !== undefined && featured !== null) q = q.eq('is_featured', !!featured);
+    return unwrap(await q).map(mapCategory);
+  },
+  async getCategory(slugOrId) {
+    const c = await sb();
+    const r = unwrap(await c.from('categories').select('*').eq(UUID_RE.test(slugOrId) ? 'id' : 'slug', String(slugOrId)).maybeSingle());
+    return r ? mapCategory(r) : null; // RLS hides inactive categories from non-admins
+  },
+  async listProducts(o = {}) {
+    const c = await sb();
+    let query = await supaProductQuery(c, o, false);
+    if (!query) return [];
+    if (o.page) { const { page, pageSize } = pageOf(o); query = query.range((page - 1) * pageSize, page * pageSize - 1); }
+    else if (o.limit > 0) query = query.limit(o.limit);
+    return unwrap(await query).map(mapProduct);
+  },
+  async listProductsPaged(o = {}) {
+    const c = await sb(); const { page, pageSize } = pageOf(o);
+    const query = await supaProductQuery(c, o, true);
+    if (!query) return { items: [], total: 0, page, pageSize };
+    const { data, error, count } = await query.range((page - 1) * pageSize, page * pageSize - 1);
+    const rows = unwrap({ data, error });
+    return { items: rows.map(mapProduct), total: count == null ? rows.length : count, page, pageSize };
+  },
+  async adminListCategories() {
+    await requireAdminSupa();
+    const c = await sb();
+    return unwrap(await c.from('categories').select('*, products(count)').order('sort_order').order('name'))
+      .map((r) => ({ ...mapCategory(r), product_count: (r.products && r.products[0] && r.products[0].count) || 0 }));
+  },
+  async adminUpsertCategory(input) {
+    await requireAdminSupa();
+    const d = normalizeCategory(input); const c = await sb();
+    const all = unwrap(await c.from('categories').select('id,slug,parent_id,sort_order'));
+    if (d.id && !all.some((x) => x.id === d.id)) throw err('not_found', 'Category not found');
+    if (all.some((x) => x.slug === d.slug && x.id !== d.id)) throw err('validation', 'Slug already used');
+    checkParent(all, d.id, d.parent_id);
+    const row = { slug: d.slug, name: d.name, description: d.description, image: d.image, parent_id: d.parent_id,
+      is_featured: d.is_featured, is_active: d.is_active };
+    if (d.sort !== undefined) row.sort_order = d.sort;
+    else if (!d.id) row.sort_order = all.reduce((m, x) => Math.max(m, x.sort_order), -1) + 1;
+    const q = d.id ? c.from('categories').update(row).eq('id', d.id) : c.from('categories').insert(row);
+    return mapCategory(unwrap(await q.select('*').single()));
+  },
+  async adminDeleteCategory(id, { reassignTo } = {}) {
+    await requireAdminSupa();
+    const c = await sb();
+    let target = null;
+    if (reassignTo) {
+      target = UUID_RE.test(reassignTo) ? reassignTo : (unwrap(await c.from('categories').select('id').eq('slug', String(reassignTo)).maybeSingle()) || {}).id;
+      if (!target) throw err('validation', 'Unknown reassign target');
+    }
+    const r = await c.rpc('admin_delete_category', { p_id: id, p_reassign: target });
+    if (r.error && /category still has/i.test(String(r.error.message))) {
+      const e = err('validation', String(r.error.message)); e.reason = 'in_use'; throw e;
+    }
+    return { deleted: true, reassigned: Number(unwrap(r)) || 0 };
+  },
+  async adminReorderCategories(ids) {
+    await requireAdminSupa();
+    if (!Array.isArray(ids) || ids.some((i) => !UUID_RE.test(i))) throw err('validation', 'ids must be category ids');
+    const c = await sb();
+    unwrap(await c.rpc('admin_reorder_categories', { p_ids: ids }));
+    return supa.adminListCategories();
+  },
+  async uploadCategoryImage(file, { onProgress } = {}) {
+    await requireAdminSupa();
+    const info = await validateMediaFile(file);
+    if (info.type !== 'image') throw err('validation', 'Category image must be a JPEG, PNG or WebP');
+    const c = await sb();
+    if (typeof onProgress === 'function') onProgress(0);
+    const path = `categories/${uuid()}.${info.ext}`;
+    const up = await c.storage.from(bucketName()).upload(path, file, { contentType: info.mime, cacheControl: '31536000', upsert: false });
+    if (up.error) unwrap({ error: up.error });
+    const url = c.storage.from(bucketName()).getPublicUrl(path).data.publicUrl;
+    if (typeof onProgress === 'function') onProgress(1);
+    return { url, value: url };
+  }
+});
+
+/* ====================================================================== */
 const impl = mode === 'supabase' ? supa : local;
 export const listCategories = (...a) => impl.listCategories(...a);
+export const getCategory = (...a) => impl.getCategory(...a);
+export const adminListCategories = (...a) => impl.adminListCategories(...a);
+export const adminUpsertCategory = (...a) => impl.adminUpsertCategory(...a);
+export const adminDeleteCategory = (...a) => impl.adminDeleteCategory(...a);
+export const adminReorderCategories = (...a) => impl.adminReorderCategories(...a);
+export const uploadCategoryImage = (...a) => impl.uploadCategoryImage(...a);
+export const listProductsPaged = (...a) => impl.listProductsPaged(...a);
 export const listProducts = (...a) => impl.listProducts(...a);
 export const getProduct = (...a) => impl.getProduct(...a);
 export const validateCoupon = (...a) => impl.validateCoupon(...a);
