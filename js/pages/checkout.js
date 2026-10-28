@@ -2,7 +2,7 @@ import '../i18n.commerce.js';
 import '../i18n.payment.js';
 import '../config.js';
 import { t } from '../i18n.js';
-import { escapeHtml, toast } from '../layout.js';
+import { escapeHtml, toast, pageReady } from '../layout.js';
 import { getCart, clearCart, setQty, removeItem } from '../cart.js';
 import { computeTotals, formatMoney } from '../pricing.js';
 import { validateCoupon, placeOrder, getUser, getProduct, createCardCheckout } from '../api.js';
@@ -329,4 +329,4 @@ async function init() {
   if (!pm) values.payment = defaultMethod() || values.payment;
   route();
 }
-init();
+init().finally(pageReady);

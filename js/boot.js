@@ -77,10 +77,51 @@
       '<button type="button" class="boot-retry" id="boot-retry">' + esc(s.retry) + '</button>' +
       '<details class="boot-details"><summary>' + esc(s.details) + '</summary><pre id="boot-pre">' + esc(details()) + '</pre></details>';
     inner.appendChild(msg);
+    probe();
     var btn = document.getElementById('boot-retry');
     btn.addEventListener('click', function () { location.reload(); });
     try { btn.focus({ preventScroll: true }); } catch (e) {}
   }
+  // Diagnostics: walk the static/dynamic import graph of the page's module(s) and report which file is missing,
+  // erroring or not answering (each request gets a 4s timeout), so a screenshot of "Details" names the culprit.
+  var IMPORT_RE = /(?:\bimport|\bexport)\s*(?:[^'"();]*?\bfrom\s*)?['"]([^'"]+)['"]|\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  function probe() {
+    if (!window.fetch) return;
+    var pre = document.getElementById('boot-pre');
+    var seen = {}, count = 0, out = [];
+    function log(line) { out.push(line); if (pre) pre.textContent += '\n' + line; }
+    log('');
+    log('module check:');
+    function check(url) {
+      if (seen[url] || count >= 40) return Promise.resolve();
+      seen[url] = 1; count++;
+      var ctl = window.AbortController ? new AbortController() : null;
+      var to = setTimeout(function () { if (ctl) ctl.abort(); }, 4000), t0 = Date.now();
+      return fetch(url, ctl ? { signal: ctl.signal } : {}).then(function (r) {
+        clearTimeout(to);
+        var ms = Date.now() - t0;
+        if (!r.ok) { log('  FAILED ' + short(url) + ' -> HTTP ' + r.status); return; }
+        log('  ok     ' + short(url) + ' (' + ms + 'ms)');
+        return r.text().then(function (src) {
+          var jobs = [], m;
+          IMPORT_RE.lastIndex = 0;
+          while ((m = IMPORT_RE.exec(src))) {
+            var spec = m[1] || m[2];
+            if (!spec || !/^\.{0,2}\//.test(spec)) continue;
+            var u = new URL(spec, url).href;
+            if (u.indexOf(location.origin) === 0) jobs.push(check(u));
+          }
+          return Promise.all(jobs);
+        });
+      }, function (e) {
+        clearTimeout(to);
+        log('  FAILED ' + short(url) + ' -> ' + (e && e.name === 'AbortError' ? 'no answer after 4s (request hangs)' : 'network error'));
+      });
+    }
+    var entries = [].slice.call(document.querySelectorAll('script[type=module][src]')).map(function (s) { return s.src; });
+    Promise.all(entries.map(check)).then(function () { log('done'); });
+  }
+
   window.__bootReady = function () {
     if (ready) return;
     ready = true;

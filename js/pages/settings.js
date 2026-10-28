@@ -1,5 +1,5 @@
 import { t, getLang, getLangs, setLang, LANG_NAMES } from '../i18n.js';
-import { api, escapeHtml, toast, setMeta } from '../layout.js';
+import { api, escapeHtml, toast, setMeta, pageReady } from '../layout.js';
 import { clearCart } from '../cart.js';
 
 const main = document.getElementById('main');
@@ -90,6 +90,7 @@ function wire() {
 }
 
 render();
+pageReady();
 try {
   if (sessionStorage.getItem('jps_lang_saved')) {
     sessionStorage.removeItem('jps_lang_saved');

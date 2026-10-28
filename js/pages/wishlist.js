@@ -1,5 +1,5 @@
 import { t } from '../i18n.js';
-import { api, setMeta, icon, escapeHtml, productCardHTML, bindProductCards, skeletonCards, ready } from '../layout.js';
+import { api, setMeta, icon, escapeHtml, productCardHTML, bindProductCards, skeletonCards, ready, pageReady } from '../layout.js';
 
 setMeta({ title: t('wishlist.title'), description: t('wishlist.desc') });
 const main = document.getElementById('main');
@@ -26,6 +26,7 @@ function render() {
     products = ids.map(id => all.find(p => p.id === id)).filter(Boolean);
     render();
   } catch { grid.removeAttribute('aria-busy'); grid.innerHTML = `<div class="state" style="grid-column:1/-1"><h2>${escapeHtml(t('common.error'))}</h2></div>`; }
+  finally { pageReady(); }
 })();
 // un-hearting removes the card from this page
 window.addEventListener('jps:wishlist', e => {

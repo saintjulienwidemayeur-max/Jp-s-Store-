@@ -1,6 +1,6 @@
 import '../i18n.commerce.js';
 import { t } from '../i18n.js';
-import { escapeHtml, toast } from '../layout.js';
+import { escapeHtml, toast, pageReady } from '../layout.js';
 import { formatMoney } from '../pricing.js';
 import { signIn, signUp, signOut, getUser, onAuthChange, listMyOrders } from '../api.js';
 
@@ -95,5 +95,5 @@ root.addEventListener('submit', async (e) => {
   render();
 });
 
-render();
+render().finally(pageReady);
 try { onAuthChange(() => render()); } catch {}

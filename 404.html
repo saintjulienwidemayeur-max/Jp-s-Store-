@@ -25,7 +25,7 @@
 @keyframes boot-show{to{opacity:1}}
 @keyframes boot-spin{to{transform:rotate(360deg)}}
 @keyframes boot-pulse{0%,100%{opacity:1}50%{opacity:.45}}
-@media (prefers-reduced-motion:reduce){#boot{transition:none}#boot .boot-ring::before{animation:boot-pulse 1.8s ease-in-out infinite}#boot .boot-in{animation-duration:.01s}}
+@media (prefers-reduced-motion:reduce){#boot{transition:none}#boot .boot-ring::before{animation:boot-pulse 1.8s ease-in-out infinite!important}#boot .boot-in{animation-duration:.01s}}
 </style>
 <noscript><style>#boot{display:none!important}</style></noscript>
 <script src="js/boot.js"></script>

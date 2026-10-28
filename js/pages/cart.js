@@ -2,7 +2,7 @@ import '../i18n.commerce.js';
 import '../i18n.payment.js';
 import { securePaymentHTML } from '../payment-ui.js';
 import { t } from '../i18n.js';
-import { escapeHtml, toast } from '../layout.js';
+import { escapeHtml, toast, pageReady } from '../layout.js';
 import { getCart, setQty, removeItem, onCartChange } from '../cart.js';
 import { computeTotals, formatMoney } from '../pricing.js';
 import { validateCoupon } from '../api.js';
@@ -137,4 +137,4 @@ async function init() {
   render();
   onCartChange(render);
 }
-init();
+init().finally(pageReady);

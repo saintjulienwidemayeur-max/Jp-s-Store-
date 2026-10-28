@@ -1,5 +1,5 @@
 import { t } from '../i18n.js';
-import { api, setMeta, icon, escapeHtml, IG_URL, toast } from '../layout.js';
+import { api, setMeta, icon, escapeHtml, IG_URL, toast, pageReady } from '../layout.js';
 
 const PAGES = ['about', 'contact', 'faq', 'shipping', 'returns'];
 let p = new URLSearchParams(location.search).get('p') || 'about';
@@ -28,6 +28,7 @@ else body = `<div class="contact-grid">
 
 main.innerHTML = `<div class="container"><div class="page-head"><h1>${escapeHtml(title)}</h1>${p === 'contact' ? `<p>${escapeHtml(t('info.contact.intro'))}</p>` : ''}</div>${nav}${body}<div style="height:32px"></div></div>`;
 
+pageReady();
 const f = document.getElementById('cf');
 if (f) f.addEventListener('submit', async e => {
   e.preventDefault();

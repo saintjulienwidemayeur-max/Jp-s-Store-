@@ -1,6 +1,6 @@
 import { t } from '../i18n.js';
 import { formatMoney, COUPON_DEFAULT } from '../pricing.js';
-import { api, setMeta, icon, escapeHtml, productCardHTML, bindProductCards, starsHTML, imageHTML, toast, isWished, toggleWish, ready } from '../layout.js';
+import { api, setMeta, icon, escapeHtml, productCardHTML, bindProductCards, starsHTML, imageHTML, toast, isWished, toggleWish, ready, pageReady } from '../layout.js';
 import { addItem } from '../cart.js';
 import '../i18n.media.js';
 import { mountViewer } from '../viewer3d.js';
@@ -265,4 +265,4 @@ async function loadReviews(p) {
   };
   draw();
 }
-init();
+init().finally(pageReady);

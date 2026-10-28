@@ -2,7 +2,7 @@ import '../i18n.commerce.js';
 import '../i18n.payment.js';
 import '../config.js';
 import { t } from '../i18n.js';
-import { escapeHtml } from '../layout.js';
+import { escapeHtml, pageReady } from '../layout.js';
 import { formatMoney } from '../pricing.js';
 import { getOrder, createCardCheckout, demoMarkPaid, mode } from '../api.js';
 import { cardLogosHTML } from '../payment-ui.js';
@@ -184,9 +184,10 @@ const n = qs.get('n'); const e = qs.get('e');
 if (n && e) {
   let fresh = false;
   try { fresh = sessionStorage.getItem('jps_fresh_' + n) === '1'; sessionStorage.removeItem('jps_fresh_' + n); } catch {}
-  load(n, e, fresh);
+  load(n, e, fresh).finally(pageReady);
 }
 else {
   document.title = `${t('order.title')} | JP's Logistics & More`;
   root.innerHTML = `<h1>${escapeHtml(t('order.title'))}</h1>${trackForm(null, n || '', e || '')}`;
+  pageReady();
 }

@@ -22,7 +22,7 @@ module.exports = [
     // validation
     await page.fill('#k-name', 'X');
     await page.click('#cat-form button[type=submit]');
-    await page.waitForSelector('#cat-form .c-alert.err');
+    await page.waitForSelector('#cat-form .c-alert.err:not([hidden])');
     await page.fill('#k-name', 'Garden <b>& Tools</b>');
     await page.fill('#k-desc', 'Outdoor things');
     await page.setInputFiles('#k-img', PHOTO);
@@ -38,7 +38,7 @@ module.exports = [
     // edit: deactivate, rename
     await row.locator('[data-act=edit-cat]').click();
     await page.waitForSelector('#cat-form');
-    await page.fill('#k-name', 'Garden');
+    await page.fill('#k-name', 'Garden'); await page.fill('#k-slug', 'garden');
     await page.uncheck('input[name=is_active]');
     await page.click('#cat-form button[type=submit]');
     await page.waitForFunction(() => /Garden/.test(document.querySelector('.a-cats').textContent) && /Inactive/i.test(document.querySelector('.a-cats').textContent));
@@ -65,8 +65,8 @@ module.exports = [
     await page.waitForFunction((first) => document.querySelector('.a-cat .a-cat-main strong').textContent !== first, a[0]);
     const b = await names(page);
     h.assert.deepStrictEqual(b.slice(0, 2), [a[1], a[0]]);
-    // focus stays on the moved item's button
-    h.assert.strictEqual(await page.evaluate(() => document.activeElement.dataset.act), 'cat-up');
+    // focus stays inside the moved item's row (it is now first, so 'up' is disabled and focus falls to 'down')
+    h.assert.strictEqual(await page.evaluate(() => document.activeElement.closest('.a-cat')?.querySelector('strong').textContent), a[1]);
     await page.locator('.a-cat').first().locator('[data-act=cat-down]').click();
     await page.waitForFunction((n) => document.querySelector('.a-cat .a-cat-main strong').textContent === n, a[0]);
     await page.reload(); await page.waitForSelector('.a-stats'); await page.click('[data-tab=categories]');

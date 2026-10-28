@@ -1,12 +1,12 @@
 // Offline app shell. Bump VERSION to invalidate caches.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `jps-shell-${VERSION}`;
 const SHELL = [
   './', 'index.html', 'shop.html', 'product.html', 'wishlist.html', 'info.html', '404.html',
   'cart.html', 'checkout.html', 'order.html', 'account.html', 'admin.html', 'settings.html',
   'css/styles.css', 'css/commerce.css', 'css/admin.css', 'css/media.css', 'css/payments.css', 'js/payment-ui.js', 'js/i18n.payment.js',
   'assets/payments/visa.svg', 'assets/payments/mastercard.svg', 'assets/payments/amex.svg', 'assets/payments/discover.svg', 'assets/payments/secure.svg',
-  'js/i18n.js', 'js/i18n.commerce.js', 'js/i18n.media.js', 'js/viewer3d.js', 'js/layout.js', 'js/cart.js', 'js/api.js', 'js/pricing.js', 'js/seed.js', 'js/config.js', 'env.js',
+  'js/boot.js', 'js/catalog.js', 'js/i18n.store.js', 'js/i18n.js', 'js/i18n.commerce.js', 'js/i18n.media.js', 'js/viewer3d.js', 'js/layout.js', 'js/cart.js', 'js/api.js', 'js/pricing.js', 'js/seed.js', 'js/config.js', 'env.js',
   'js/pages/home.js', 'js/pages/shop.js', 'js/pages/product.js', 'js/pages/wishlist.js', 'js/pages/info.js', 'js/pages/notfound.js',
   'js/pages/cart.js', 'js/pages/checkout.js', 'js/pages/order.js', 'js/pages/account.js', 'js/pages/admin.js', 'js/pages/settings.js', 'js/pages/admin-media.js',
   'assets/brand/logo.png', 'assets/brand/icon-192.png', 'assets/brand/icon-512.png',

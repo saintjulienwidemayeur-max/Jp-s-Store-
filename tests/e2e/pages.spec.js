@@ -20,14 +20,13 @@ module.exports = [
     h.allowErrors(/status of 404.*definitely-missing-page/); // browser logs the 404 navigation itself
   }],
 
-  ['home shows the 4 video products with exact prices', async (h) => {
+  ['home shows the video products (Fan Zone collection) with exact prices', async (h) => {
     const page = await h.page();
     await h.go(page, 'index.html');
-    await page.waitForSelector('#popular .pcard');
-    const cards = await page.$$eval('#popular .pcard', (els) => els.map((e) => ({ n: e.dataset.name, p: e.querySelector('.price').textContent.trim() })));
+    await page.waitForSelector('#featured .pcard');
+    const cards = await page.$$eval('.pcard', (els) => els.map((e) => ({ n: e.dataset.name, p: e.querySelector('.price').textContent.trim() })));
     const want = { 'Haiti Face Tattoo': '$7.99', 'Haiti Headband': '$9.99', 'Haiti Scarf': '$17.99', 'Haiti Thunder Stick': '$14.99' };
-    h.assert.strictEqual(cards.length, 4);
-    for (const c of cards) h.assert.strictEqual(c.p, want[c.n], c.n);
+    for (const [n, p] of Object.entries(want)) h.assert.strictEqual(cards.find((c) => c.n === n)?.p, p, n);
     h.assert.ok(await page.locator('.promo').innerText().then((s) => /HT26/.test(s) && /15%/.test(s)));
     // all images loaded
     const broken = await page.$$eval('img', (imgs) => imgs.filter((i) => i.complete && i.naturalWidth === 0 && i.loading !== 'lazy').map((i) => i.src));
@@ -38,11 +37,11 @@ module.exports = [
     const page = await h.page();
     await h.go(page, 'shop.html');
     await page.waitForSelector('.pcard');
-    h.assert.ok((await page.locator('.pcard').count()) >= 8);
-    await page.click('.chip[data-cat="fan-zone"]');
-    await page.waitForSelector('.pcard');
-    h.assert.match(page.url(), /category=fan-zone/);
-    h.assert.strictEqual(await page.locator('.chip[data-cat="fan-zone"]').getAttribute('aria-pressed'), 'true');
+    h.assert.strictEqual(await page.locator('.pcard').count(), 12); // first page of the paginated catalogue
+    await page.click('[data-cat="fan-zone"]:visible');
+    await page.waitForURL(/category=fan-zone/);
+    await page.waitForFunction(() => document.querySelector('#count')?.textContent.includes('8'));
+    h.assert.strictEqual(await page.locator('[data-cat="fan-zone"]:visible').first().getAttribute('aria-pressed'), 'true');
     await page.selectOption('#sort', 'price_asc');
     await page.waitForFunction(() => document.querySelector('.pcard .price')?.textContent.includes('5.99'));
     let prices = await page.$$eval('.pcard', (els) => els.map((e) => +e.dataset.price));
