@@ -293,7 +293,7 @@ module.exports = [
     // direct deep link restores everything
     await h.go(page, 'shop.html?category=fashion&min=30&sort=price_desc&stock=1');
     await settled(page);
-    h.assert.deepStrictEqual(await cardNames(page), ['Sample Denim Jacket'].map((n) => (n)).filter(Boolean).length ? await cardNames(page) : []);
+    h.assert.strictEqual(await page.locator('#grid .pcard').getAttribute('data-price'), '54');
     h.assert.strictEqual(await page.locator('#grid .pcard').count(), 1);
     h.assert.strictEqual(await page.inputValue('#pmin'), '30');
     h.assert.strictEqual(await page.inputValue('#sort'), 'price_desc');
@@ -324,13 +324,13 @@ module.exports = [
     h.assert.strictEqual(await page.locator('h1').count(), 1);
     h.assert.strictEqual(await page.locator('#grid .pcard').count(), 8);
     h.assert.match(await page.title(), /Fan Zone \| JP's Logistics & More/);
-    h.assert.match(await page.locator('.crumbs').innerText(), /Home\s*\/\s*Shop\s*\/\s*Fan Zone/);
+    h.assert.match(await page.locator('.crumbs').innerText(), /Home\s*Shop\s*Fan Zone/);
     await h.go(page, 'shop.html?category=beauty');
     await settled(page);
     h.assert.strictEqual((await page.locator('h1').innerText()).trim(), 'Beauty');
     h.assert.ok(await page.locator('.coll-banner').count() === 1 && await page.locator('.hero-in').count() === 0);
     h.assert.ok(!/Fierté|Haiti/i.test(await page.locator('#banner').innerText()), 'Haitian copy stays on Fan Zone');
-    h.assert.match(await page.locator('meta[name=description]').getAttribute('content'), /Beauty|beauty/);
+    h.assert.match(await page.locator('meta[name=description]').getAttribute('content'), /skin, hair/);
     // product card -> product page keeps working
     await page.click('#grid .pcard .pcard-name a');
     await page.waitForURL(/product\.html\?slug=/);

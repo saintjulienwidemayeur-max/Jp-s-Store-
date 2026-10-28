@@ -11,7 +11,7 @@ function render() {
   grid.removeAttribute('aria-busy');
   if (!products.length) {
     count.textContent = '';
-    grid.innerHTML = `<div class="state" style="grid-column:1/-1"><span class="state-ic">${icon('heart')}</span><h2>${escapeHtml(t('wishlist.empty.title'))}</h2><p>${escapeHtml(t('wishlist.empty.text'))}</p><a class="btn btn-primary" href="shop.html">${escapeHtml(t('home.hero.cta'))}</a></div>`;
+    grid.innerHTML = `<div class="state" style="grid-column:1/-1"><span class="state-ic">${icon('heart')}</span><h2>${escapeHtml(t('wishlist.empty.title'))}</h2><p>${escapeHtml(t('wishlist.empty.text'))}</p><a class="btn btn-primary" href="shop.html">${escapeHtml(t('home.all_products'))}</a></div>`;
     return;
   }
   count.textContent = t('wishlist.count', { n: products.length });

@@ -80,12 +80,12 @@ module.exports = [
   ['language switch EN/FR/HT persists and translates', async (h) => {
     const page = await h.page();
     await h.go(page, 'index.html');
-    h.assert.match(await page.locator('main h2.section-title').first().innerText(), /Browse by Categories/);
-    for (const [lang, re, htmlLang] of [['fr', /Parcourir par catégories|catégories/i, 'fr'], ['ht', /kategori/i, 'ht'], ['en', /Browse by Categories/, 'en']]) {
+    h.assert.match(await page.locator('main h2.section-title').first().innerText(), /Shop by category/);
+    for (const [lang, re, htmlLang] of [['fr', /Acheter par catégorie/i, 'fr'], ['ht', /Achte pa kategori/i, 'ht'], ['en', /Shop by category/, 'en']]) {
       await h.go(page, 'settings.html');
       await Promise.all([page.waitForLoadState('load'), page.locator(`input[name=lang][value=${lang}]`).check()]);
       await h.go(page, 'index.html');
-      await page.waitForSelector('#popular .pcard'); await page.waitForLoadState('networkidle');
+      await page.waitForSelector('#featured .pcard'); await page.waitForLoadState('networkidle');
       h.assert.match(await page.locator('main h2.section-title').first().innerText(), re);
       h.assert.strictEqual(await page.evaluate(() => document.documentElement.lang), htmlLang);
       h.assert.strictEqual(await page.evaluate(() => localStorage.getItem('jps_lang')), lang);

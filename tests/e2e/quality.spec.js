@@ -28,7 +28,7 @@ const AUDIT = () => {
 module.exports = [
   ['a11y audit: alt text, labels, button/link names, unique ids, landmarks on every page', async (h) => {
     const page = await h.page();
-    await h.go(page, 'index.html'); await page.waitForSelector('#popular .pcard');
+    await h.go(page, 'index.html'); await page.waitForSelector('#featured .pcard');
     await page.click('.pcard[data-slug="haiti-scarf"] [data-add]');
     await placeOrderViaApi(page);
     const problems = [];
@@ -94,6 +94,7 @@ module.exports = [
     for (const p of ['index.html', 'shop.html', 'cart.html', 'account.html', 'checkout.html', 'order.html', 'admin.html']) {
       await page.goto(h.url(p), { waitUntil: 'load' });
       await page.waitForSelector('#site-header', { timeout: 8000 });
+      await page.waitForSelector('#boot', { state: 'detached', timeout: 8000 });
       h.assert.ok((await page.locator('main').innerText()).trim().length > 0, 'offline render ' + p);
     }
     await ctx.setOffline(false);

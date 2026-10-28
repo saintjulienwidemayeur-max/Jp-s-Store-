@@ -90,7 +90,7 @@ module.exports = [
     await page.locator('#gal-main .gal-zoom').focus(); await page.keyboard.press('ArrowRight');
     await page.waitForFunction(() => document.querySelector('#thumbs .thumb[aria-current=true]') !== document.querySelector('#thumbs .thumb'));
     // product cards use the cover image
-    await h.go(page, 'shop.html'); await page.waitForSelector('.pcard');
+    await h.go(page, 'shop.html?sort=new'); await page.waitForSelector('.pcard');
     h.assert.ok(await page.locator('.pcard[data-slug="media-tee"] img').count() >= 1);
 
     // admin: set cover on a second image, delete the video
@@ -201,7 +201,7 @@ module.exports = [
     h.assert.match(await page.locator('.lang-cards').innerText(), /English[\s\S]*Français[\s\S]*Kreyòl ayisyen/);
     await h.noHScroll(page, 'settings');
 
-    for (const [lang, h1, htmlLang, cat] of [['fr', 'Paramètres', 'fr', /catégories/i], ['ht', 'Paramèt', 'ht', /kategori/i], ['en', 'Settings', 'en', /Browse by Categories/]]) {
+    for (const [lang, h1, htmlLang, cat] of [['fr', 'Paramètres', 'fr', /Acheter par catégorie/i], ['ht', 'Paramèt', 'ht', /Achte pa kategori/i], ['en', 'Settings', 'en', /Shop by category/]]) {
       await Promise.all([page.waitForLoadState('load'), page.locator(`input[name=lang][value=${lang}]`).check()]);
       await page.waitForFunction((l) => document.documentElement.lang === l, htmlLang);
       await page.waitForSelector('.settings h1');

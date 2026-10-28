@@ -8,11 +8,11 @@ module.exports = [
   ['wishlist toggle persists across reloads and shows on wishlist page', async (h) => {
     const page = await h.page();
     await h.go(page, 'index.html');
-    await page.waitForSelector('#popular .pcard');
+    await page.waitForSelector('#featured .pcard');
     const heart = page.locator('.pcard[data-slug="haiti-scarf"] [data-wish]');
     await heart.click();
     await page.waitForFunction(() => document.querySelector('.pcard[data-slug="haiti-scarf"] [data-wish]').getAttribute('aria-pressed') === 'true');
-    await page.reload(); await page.waitForSelector('#popular .pcard'); await page.waitForLoadState('networkidle');
+    await page.reload(); await page.waitForSelector('#featured .pcard'); await page.waitForLoadState('networkidle');
     h.assert.strictEqual(await page.locator('.pcard[data-slug="haiti-scarf"] [data-wish]').getAttribute('aria-pressed'), 'true');
     await h.go(page, 'wishlist.html');
     await page.waitForSelector('.pcard');
@@ -28,7 +28,7 @@ module.exports = [
   ['add to cart from card and product page; qty and remove in cart', async (h) => {
     const page = await h.page();
     await h.go(page, 'index.html');
-    await page.waitForSelector('#popular .pcard');
+    await page.waitForSelector('#featured .pcard');
     await addFromCard(page, 'haiti-headband');
     h.assert.strictEqual(await cartCount(page), 1);
     await page.waitForFunction(() => document.querySelector('[data-cart-badge]').textContent === '1' && !document.querySelector('[data-cart-badge]').hidden);
@@ -54,7 +54,7 @@ module.exports = [
 
   ['coupon HT26: not applied at/below $10, applied (15%) above $10, shipping $0', async (h) => {
     const page = await h.page();
-    await h.go(page, 'index.html'); await page.waitForSelector('#popular .pcard');
+    await h.go(page, 'index.html'); await page.waitForSelector('#featured .pcard');
     await addFromCard(page, 'haiti-headband'); // $9.99
     await h.go(page, 'cart.html'); await page.waitForSelector('.c-line');
     await page.fill('#coupon-input', 'ht26'); await page.click('#coupon-form button');
