@@ -230,8 +230,8 @@ function footerHTML() {
       <p>${escapeHtml(t('footer.tagline'))}</p>
       <a class="foot-ig" href="${IG_URL}" target="_blank" rel="noopener">${icon('insta')} @jpslogistics</a>
     </div>
-    <div><h2 class="foot-h">${escapeHtml(t('footer.shop'))}</h2><ul class="foot-list">
-      <li><a href="shop.html">${escapeHtml(t('nav.all_products'))}</a></li><span id="foot-cats" hidden></span><li><a href="wishlist.html">${escapeHtml(t('nav.wishlist'))}</a></li><li><a href="cart.html">${escapeHtml(t('nav.cart'))}</a></li><li><a href="account.html">${escapeHtml(t('nav.account'))}</a></li></ul></div>
+    <div><h2 class="foot-h">${escapeHtml(t('footer.shop'))}</h2><ul class="foot-list" id="foot-shop">
+      <li><a href="shop.html">${escapeHtml(t('nav.all_products'))}</a></li><li><a href="wishlist.html">${escapeHtml(t('nav.wishlist'))}</a></li><li><a href="cart.html">${escapeHtml(t('nav.cart'))}</a></li><li><a href="account.html">${escapeHtml(t('nav.account'))}</a></li></ul></div>
     <div><h2 class="foot-h">${escapeHtml(t('footer.help'))}</h2><ul class="foot-list">${pLinks.map(p => `<li><a href="info.html?p=${p}">${escapeHtml(t('nav.' + p))}</a></li>`).join('')}</ul></div>
     <div class="foot-news">
       <h2 class="foot-h">${escapeHtml(t('footer.newsletter'))}</h2>
@@ -289,8 +289,8 @@ function setupDrawer() {
     const walk = (nodes, depth) => nodes.map(n => link(n, depth) + walk(n.children, depth + 1)).join('');
     const tree = buildTree(cats);
     document.getElementById('drawer-cats').innerHTML = walk(tree, 0);
-    const fc = document.getElementById('foot-cats');
-    if (fc) fc.innerHTML = tree.slice(0, 6).map(c => `<li><a href="shop.html?category=${encodeURIComponent(c.slug)}">${escapeHtml(c.name)}</a></li>`).join('');
+    const fs = document.querySelector('#foot-shop li');
+    if (fs) fs.insertAdjacentHTML('afterend', tree.slice(0, 6).map(c => `<li><a href="shop.html?category=${encodeURIComponent(c.slug)}">${escapeHtml(c.name)}</a></li>`).join(''));
   }).catch(() => {});
 }
 
